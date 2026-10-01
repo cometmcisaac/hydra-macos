@@ -393,7 +393,14 @@ const getOperatingSystemTier = (
 
   if (oslist.includes(nativeOperatingSystem)) return 0;
   if (oslist.length === 0) return 1;
-  if (platform === "linux" && oslist.includes("windows")) return 1;
+  // Linux (Proton) and macOS (NotProton / Steam Play) can both run Windows
+  // builds, but only after any native build for the host.
+  if (
+    (platform === "linux" || platform === "darwin") &&
+    oslist.includes("windows")
+  ) {
+    return 1;
+  }
 
   return null;
 };
@@ -450,10 +457,20 @@ export interface SteamLaunchExecutable {
   appType: string | null;
 }
 
-const isFile = (filePath: string) =>
+const isMacAppBundleName = (filePath: string) =>
+  filePath.toLowerCase().endsWith(".app");
+
+// A macOS launch target may be a file or an `.app` bundle, which is a directory.
+const isLaunchTarget = (filePath: string, platform: NodeJS.Platform) =>
   fs.promises
     .stat(filePath)
-    .then((stats) => stats.isFile())
+    .then(
+      (stats) =>
+        stats.isFile() ||
+        (platform === "darwin" &&
+          stats.isDirectory() &&
+          isMacAppBundleName(filePath))
+    )
     .catch(() => false);
 
 const findEntryIgnoringCase = async (directory: string, name: string) => {
@@ -470,7 +487,7 @@ export const resolvePathIgnoringCase = async (
 ): Promise<string | null> => {
   const exactPath = path.join(root, ...segments);
 
-  if (await isFile(exactPath)) return exactPath;
+  if (await isLaunchTarget(exactPath, platform)) return exactPath;
   if (platform === "win32") return null;
 
   let current = root;
@@ -484,7 +501,7 @@ export const resolvePathIgnoringCase = async (
     current = path.join(current, match);
   }
 
-  return (await isFile(current)) ? current : null;
+  return (await isLaunchTarget(current, platform)) ? current : null;
 };
 
 export const resolveSteamAppExecutable = async (

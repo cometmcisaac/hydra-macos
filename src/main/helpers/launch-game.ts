@@ -30,6 +30,7 @@ import { updateGameRecord } from "@main/services/game-record-updater";
 import { dispatchSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch-dispatch";
 import { resolveSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch";
 import { CommonRedistManager } from "@main/services/common-redist-manager";
+import { launchWindowsGameThroughSteam } from "@main/services/steam-shortcuts/steam-shortcuts";
 import { runAchievementMetadataExport } from "@main/services/achievements/metadata-export";
 import { parseExecutablePath } from "../events/helpers/parse-executable-path";
 import { isGamemodeAvailable } from "./is-gamemode-available";
@@ -557,6 +558,38 @@ const launchResolvedGame = async (
   useMangohud: boolean,
   useGamemode: boolean
 ) => {
+  // macOS: a Windows executable that is not already a Steam game runs through
+  // Steam Play (NotProton) as an automatically managed non-Steam shortcut.
+  if (
+    process.platform === "darwin" &&
+    shop !== "steam" &&
+    isWindowsExecutable(parsedPath)
+  ) {
+    const game = await gamesSublevel.get(gameKey).catch(() => null);
+
+    const launched = await launchWindowsGameThroughSteam({
+      shop,
+      objectId,
+      title: game?.title ?? objectId,
+      executablePath: parsedPath,
+      launchOptions,
+    }).catch((error: unknown) => {
+      logger.error("Failed to launch game through Steam shortcut", {
+        shop,
+        objectId,
+        error,
+      });
+      return false;
+    });
+
+    if (!launched) {
+      clearCloudSaveLaunchGuard(objectId, shop);
+      WindowManager.closeGameLauncherWindow();
+    }
+
+    return null;
+  }
+
   if (process.platform !== "linux") {
     return launchNatively(parsedPath, launchOptions, useMangohud, useGamemode);
   }

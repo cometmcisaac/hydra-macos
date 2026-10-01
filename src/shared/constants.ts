@@ -116,7 +116,9 @@ export const LINUX_GAME_EXECUTABLE_EXTENSIONS = [
   "bin",
 ];
 
-export const DARWIN_GAME_EXECUTABLE_EXTENSIONS = ["app"];
+// `.exe` is selectable on macOS because Windows games run through Steam Play
+// (NotProton) as managed non-Steam shortcuts.
+export const DARWIN_GAME_EXECUTABLE_EXTENSIONS = ["app", "exe"];
 
 export const getGameExecutableFilters = (
   platform: string,
@@ -135,6 +137,7 @@ export const getGameExecutableFilters = (
         name: labels.executable,
         extensions: DARWIN_GAME_EXECUTABLE_EXTENSIONS,
       },
+      { name: labels.allFiles, extensions: ["*"] },
     ];
   }
 

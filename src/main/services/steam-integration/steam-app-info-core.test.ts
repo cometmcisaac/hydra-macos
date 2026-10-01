@@ -338,6 +338,29 @@ describe("selectSteamLaunchCandidates", () => {
     );
   });
 
+  it("prefers native macOS entries and falls back to Windows for NotProton", () => {
+    const appInfo = makeAppInfo([
+      { executable: "Game.exe", oslist: ["windows"] },
+      { executable: "Game.app", oslist: ["macos"] },
+      { executable: "game.x86_64", oslist: ["linux"] },
+    ]);
+
+    assert.deepEqual(
+      selectSteamLaunchCandidates(appInfo, "darwin", "arm64").map(
+        (entry) => entry.executable
+      ),
+      ["Game.app", "Game.exe"]
+    );
+    assert.deepEqual(
+      selectSteamLaunchCandidates(
+        makeAppInfo([{ executable: "Game.exe", oslist: ["windows"] }]),
+        "darwin",
+        "arm64"
+      ).map((entry) => entry.executable),
+      ["Game.exe"]
+    );
+  });
+
   it("ranks beta branches and 32-bit builds after the regular 64-bit launch", () => {
     const appInfo = makeAppInfo([
       { executable: "beta.exe", betakey: "beta" },
@@ -401,6 +424,42 @@ describe("resolveSteamAppExecutable", () => {
       path.join("bin", "win64", "game.exe")
     );
     assert.ok(fs.existsSync(executablePath));
+  });
+
+  it("resolves a macOS .app bundle directory as a launch target", async (t) => {
+    const installDirectory = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "hydra-steam-mac-")
+    );
+    t.after(() =>
+      fs.promises.rm(installDirectory, { recursive: true, force: true })
+    );
+
+    await fs.promises.mkdir(
+      path.join(installDirectory, "Game.app", "Contents", "MacOS"),
+      { recursive: true }
+    );
+
+    const appInfo = makeAppInfo([{ executable: "game.app", oslist: ["macos"] }]);
+
+    const resolved = await resolveSteamAppExecutable(
+      appInfo,
+      installDirectory,
+      "darwin",
+      "arm64"
+    );
+    assert.ok(resolved);
+    assert.equal(path.basename(resolved).toLowerCase(), "game.app");
+
+    // Directories are still rejected on other platforms.
+    assert.equal(
+      await resolveSteamAppExecutable(
+        makeAppInfo([{ executable: "Game.app" }]),
+        installDirectory,
+        "linux",
+        "x64"
+      ),
+      null
+    );
   });
 
   it("never leaves the install directory", async (t) => {

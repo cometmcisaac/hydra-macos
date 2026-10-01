@@ -1,20 +1,33 @@
 import { app } from "electron";
 import path from "node:path";
 import { SystemPath } from "./services/system-path";
+import process from "node:process";
 
 export const defaultDownloadsPath = SystemPath.getPath("downloads");
 
-export const isStaging = import.meta.env.MAIN_VITE_API_URL.includes("staging");
+export const isMacOS = process.platform === "darwin";
+export const isWindows = process.platform === "win32";
+export const isLinux = process.platform === "linux";
 
-export const windowsStartMenuPath = path.join(
-  SystemPath.getPath("appData"),
-  "Microsoft",
-  "Windows",
-  "Start Menu",
-  "Programs"
-);
+export const publicProfilePath = isMacOS
+  ? "/Users/Shared"
+  : isWindows
+    ? "C:/Users/Public"
+    : "/usr/share";
 
-export const publicProfilePath = "C:/Users/Public";
+export const isStaging = String(
+  import.meta.env.MAIN_VITE_API_URL ?? ""
+).includes("staging");
+
+export const startMenuPath = isWindows
+  ? path.join(
+      SystemPath.getPath("appData"),
+      "Microsoft",
+      "Windows",
+      "Start Menu",
+      "Programs"
+    )
+  : undefined;
 
 export const levelDatabasePath = path.join(
   SystemPath.getPath("userData"),
