@@ -24,3 +24,6 @@ TO-DO.md
 .cache/
 native/torrent-bridge/build/
 native/torrent-bridge/vcpkg_installed/
+
+# stray macOS clipboard artifacts
+*.textClipping
