@@ -4,12 +4,15 @@ import { SystemPath } from "@main/services/system-path";
 import { Wine } from "@main/services/wine";
 import { logger } from "@main/services/logger";
 import { getSteamStoreUserContext } from "@main/services/steam-login-users";
+import { resolveMacWindowsRuntime } from "@main/services/mac-windows/mac-windows-runtime";
+import { resolveSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch";
 import type { CloudSavePathContext, GameShop } from "@types";
 
 import {
   resolveCloudSaveEnvironment,
   type CloudSavePrefixGenerationOverride,
 } from "./cloud-save-environment";
+import { resolveCloudSavePlatform } from "./cloud-save-platform";
 
 export interface CloudSaveGameContextOverrides {
   executablePath?: string;
@@ -17,22 +20,20 @@ export interface CloudSaveGameContextOverrides {
   prefixGenerationOverride?: CloudSavePrefixGenerationOverride;
 }
 
-const getCloudSavePlatform = (): CloudSavePathContext["platform"] => {
-  if (process.platform === "win32") return "windows";
-  if (process.platform === "darwin") return "mac";
-  return "linux";
-};
-
 const getRequestedWinePrefixPath = (
   usesWindowsCompatibility: boolean,
   gameWinePrefixPath: string | null | undefined,
   objectId: string,
-  overrides?: CloudSaveGameContextOverrides
+  overrides?: CloudSaveGameContextOverrides,
+  macPrefixPath?: string | null
 ) => {
   if (!usesWindowsCompatibility) return null;
   if (overrides && "winePrefixPath" in overrides) {
     return overrides.winePrefixPath ?? null;
   }
+  // On macOS the prefix depends on how the game runs: a CrossOver bottle, or
+  // Steam Play's compatdata folder (see resolveMacWindowsRuntime).
+  if (process.platform === "darwin") return macPrefixPath ?? null;
   return Wine.getEffectivePrefixPath(gameWinePrefixPath, objectId);
 };
 
@@ -49,17 +50,37 @@ export const getCloudSaveGameContext = async (
     shop === "steam" && steamPath
       ? await getSteamStoreUserContext(steamPath)
       : { known: [] };
-  const platform = getCloudSavePlatform();
   const executablePath =
     overrides?.executablePath ?? game?.executablePath ?? undefined;
+  const platform = resolveCloudSavePlatform(process.platform, executablePath);
   const usesWindowsCompatibility =
     platform === "linux" &&
     executablePath?.toLowerCase().endsWith(".exe") === true;
+  const macWindowsRuntime =
+    process.platform === "darwin" && usesWindowsCompatibility && executablePath
+      ? await resolveMacWindowsRuntime({
+          shop,
+          objectId,
+          executablePath,
+          gameWinePrefixPath: game?.winePrefixPath,
+          steamPath,
+          steamLibraryPrefixPath:
+            shop === "steam"
+              ? ((
+                  await resolveSteamProtocolLaunch(
+                    objectId,
+                    executablePath
+                  ).catch(() => null)
+                )?.compatibilityPrefixPath ?? null)
+              : null,
+        })
+      : null;
   const requestedWinePrefixPath = getRequestedWinePrefixPath(
     usesWindowsCompatibility,
     game?.winePrefixPath,
     objectId,
-    overrides
+    overrides,
+    macWindowsRuntime?.prefixPath
   );
   const winePrefixPath = await Wine.resolvePrefixPath(requestedWinePrefixPath);
   const pathContext: CloudSavePathContext = {

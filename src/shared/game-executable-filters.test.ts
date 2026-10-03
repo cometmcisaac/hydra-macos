@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { getGameExecutableFilters } from "./constants";
+import { getGameExecutableFilters } from "./constants.js";
 
 const labels = { executable: "Game executable", allFiles: "All files" };
 

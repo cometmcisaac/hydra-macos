@@ -27,9 +27,14 @@ import {
   launchedGamePids,
 } from "@main/services";
 import { updateGameRecord } from "@main/services/game-record-updater";
+import { getSteamLocation } from "@main/services/steam";
 import { dispatchSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch-dispatch";
 import { resolveSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch";
 import { CommonRedistManager } from "@main/services/common-redist-manager";
+import {
+  resolveMacWindowsRuntime,
+  type MacWindowsBackend,
+} from "@main/services/mac-windows/mac-windows-runtime";
 import { launchWindowsGameThroughSteam } from "@main/services/steam-shortcuts/steam-shortcuts";
 import { runAchievementMetadataExport } from "@main/services/achievements/metadata-export";
 import { parseExecutablePath } from "../events/helpers/parse-executable-path";
@@ -460,6 +465,25 @@ const prepareSteamCompatibilityForCloudSave = (
   };
 };
 
+// A Windows game on macOS whose Wine prefix Hydra cannot determine (for
+// example one run through the default .exe handler). Syncing without a prefix
+// would look for Windows saves in macOS folders, so cloud saves are skipped.
+const skipCloudSaveWithoutPrefix = (
+  shop: GameShop,
+  objectId: string
+): PreparedLinuxCompatibility => {
+  logger.warn(
+    "[Cloud Save] No Wine prefix resolved for this Windows game; skipping sync",
+    { shop, objectId }
+  );
+
+  return {
+    context: null,
+    prefixReadyForRestore: false,
+    prefixSafeForUpload: false,
+  };
+};
+
 const prepareLinuxCompatibilityForLaunch = async (
   parsedPath: string,
   game: Game | undefined,
@@ -556,13 +580,15 @@ const launchResolvedGame = async (
   compatibilityContext: LinuxCompatibilityLaunchContext | null,
   launchOptions: string | null | undefined,
   useMangohud: boolean,
-  useGamemode: boolean
+  useGamemode: boolean,
+  macWindowsBackend?: MacWindowsBackend
 ) => {
-  // macOS: a Windows executable that is not already a Steam game runs through
-  // Steam Play (NotProton) as an automatically managed non-Steam shortcut.
+  // macOS: a Windows executable that is neither in a Steam library nor in a
+  // CrossOver bottle runs through Steam Play (NotProton) as an automatically
+  // managed non-Steam shortcut. Everything else keeps its normal launch path.
   if (
     process.platform === "darwin" &&
-    shop !== "steam" &&
+    macWindowsBackend === "steam-shortcut" &&
     isWindowsExecutable(parsedPath)
   ) {
     const game = await gamesSublevel.get(gameKey).catch(() => null);
@@ -582,7 +608,9 @@ const launchResolvedGame = async (
       return false;
     });
 
-    if (!launched) {
+    if (launched) {
+      PowerSaveBlockerManager.markCompatibilityLaunchStarted(gameKey);
+    } else {
       clearCloudSaveLaunchGuard(objectId, shop);
       WindowManager.closeGameLauncherWindow();
     }
@@ -670,10 +698,34 @@ const launchGameWithCloudSaveChecks = async (
       game?.autoRunGamemode === true) &&
     isGamemodeAvailable();
 
-  const steamCompatibilityPrefixPath =
-    process.platform === "linux" &&
-    isWindowsExecutable(parsedPath) &&
-    steamProtocolLaunch
+  const macWindowsRuntime =
+    process.platform === "darwin" && isWindowsExecutable(parsedPath)
+      ? await resolveMacWindowsRuntime({
+          shop,
+          objectId,
+          executablePath: parsedPath,
+          gameWinePrefixPath: game?.winePrefixPath,
+          steamPath: await getSteamLocation().catch(() => null),
+          steamLibraryPrefixPath:
+            steamProtocolLaunch?.compatibilityPrefixPath ?? null,
+        })
+      : null;
+
+  if (macWindowsRuntime) {
+    logger.info("[Cloud Save] Resolved macOS Windows runtime", {
+      shop,
+      objectId,
+      backend: macWindowsRuntime.backend,
+      prefixPath: macWindowsRuntime.prefixPath,
+      ambiguousBottles: macWindowsRuntime.ambiguousBottles,
+    });
+  }
+
+  const steamCompatibilityPrefixPath = macWindowsRuntime
+    ? macWindowsRuntime.prefixPath
+    : process.platform === "linux" &&
+        isWindowsExecutable(parsedPath) &&
+        steamProtocolLaunch
       ? steamProtocolLaunch.compatibilityPrefixPath
       : null;
 
@@ -701,13 +753,15 @@ const launchGameWithCloudSaveChecks = async (
     prefixGenerationOverride,
   } = steamCompatibilityPrefixPath
     ? prepareSteamCompatibilityForCloudSave(steamCompatibilityPrefixPath)
-    : await prepareLinuxCompatibilityForLaunch(
-        parsedPath,
-        launchGameRecord,
-        objectId,
-        shop,
-        shouldRunV2AutomaticSync
-      );
+    : macWindowsRuntime
+      ? skipCloudSaveWithoutPrefix(shop, objectId)
+      : await prepareLinuxCompatibilityForLaunch(
+          parsedPath,
+          launchGameRecord,
+          objectId,
+          shop,
+          shouldRunV2AutomaticSync
+        );
 
   const cloudSaveContext = shouldRunV2AutomaticSync
     ? await getCloudSaveGameContext(objectId, shop, {
@@ -852,7 +906,8 @@ const launchGameWithCloudSaveChecks = async (
           compatibilityContext,
           launchOptions,
           useMangohud,
-          useGamemode
+          useGamemode,
+          macWindowsRuntime?.backend
         );
       }
     );
@@ -884,7 +939,8 @@ const launchGameWithCloudSaveChecks = async (
     compatibilityContext,
     launchOptions,
     useMangohud,
-    useGamemode
+    useGamemode,
+    macWindowsRuntime?.backend
   );
 };
 

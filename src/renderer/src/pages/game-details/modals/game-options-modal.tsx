@@ -864,13 +864,17 @@ export function GameOptionsModal({
 
   const isLaunchbox = game.shop === "launchbox";
   const showDownloadSettings = game.shop !== "custom";
+  const isMacWindowsGame =
+    globalThis.window.electron.platform === "darwin" &&
+    game.executablePath?.toLowerCase().endsWith(".exe") === true;
   const shouldShowWinePrefixConfiguration =
-    globalThis.window.electron.platform === "linux";
+    globalThis.window.electron.platform === "linux" || isMacWindowsGame;
   const defaultHydraWinePrefixPath = defaultWinePrefixPath
     ? `${defaultWinePrefixPath}/${game.objectId}`
     : null;
-  const displayedWinePrefixPath =
-    game.winePrefixPath ?? defaultHydraWinePrefixPath;
+  const displayedWinePrefixPath = isMacWindowsGame
+    ? (game.winePrefixPath ?? null)
+    : (game.winePrefixPath ?? defaultHydraWinePrefixPath);
 
   const categories = useMemo(
     () => [
@@ -1317,6 +1321,7 @@ export function GameOptionsModal({
                   onChangeGamemodeState={handleChangeGamemodeState}
                   onChangeMangohudState={handleChangeMangohudState}
                   onChangeProtonVersion={handleChangeProtonVersion}
+                  variant={isMacWindowsGame ? "macos" : "linux"}
                 />
               )}
             {selectedCategory === "downloads" && showDownloadSettings && (
