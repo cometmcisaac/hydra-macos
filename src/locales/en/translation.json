@@ -356,6 +356,7 @@
     "unpin_game": "Unpin game",
     "failed_update_pinned": "Failed to update pin",
     "create_shortcut": "Create Desktop Shortcut",
+    "create_application_shortcut": "Create Application Shortcut",
     "create_shortcut_simple": "Create shortcut",
     "clear": "Clear",
     "remove_files": "Remove files",

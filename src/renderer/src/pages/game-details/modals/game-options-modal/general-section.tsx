@@ -896,7 +896,9 @@ export function GeneralSettingsSection({
                   onClick={() => onCreateShortcut("desktop")}
                   theme="outline"
                 >
-                  {t("create_shortcut")}
+                  {window.electron.platform === "darwin"
+                    ? t("create_application_shortcut")
+                    : t("create_shortcut")}
                 </Button>
               )}
               {steamShortcutButton}

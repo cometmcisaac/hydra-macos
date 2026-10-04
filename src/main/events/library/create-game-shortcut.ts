@@ -14,9 +14,14 @@ import { getGameAssets } from "../catalogue/get-game-assets";
 import { logger } from "@main/services";
 import {
   buildRunDeepLink,
+  getShortcutArguments,
   getHydraShortcutTarget,
   getWindowsVbsPath,
 } from "@main/helpers/shortcut-launch";
+import {
+  createMacAppShortcut,
+  resolveMacApplicationDirectory,
+} from "@main/helpers/create-macos-app-shortcut";
 
 const isValidUrl = (url: string | null | undefined): url is string => {
   return (
@@ -255,6 +260,26 @@ const createGameShortcut = async (
       throw new Error(
         `Failed to create ${locationName} shortcut in ${outputPath}.`
       );
+    }
+
+    return true;
+  }
+
+  if (process.platform === "darwin") {
+    // macOS treats a shortcut as a real application bundle. Create a small
+    // `.app` in /Applications (or ~/Applications) that reopens Hydra with the
+    // game's run deep link, so the game launches through the regular macOS
+    // runtime (CrossOver/Bottles/Steam) exactly like pressing Play.
+    const createdBundle = createMacAppShortcut({
+      appName: shortcutName,
+      outputDirectory: resolveMacApplicationDirectory(),
+      executablePath: shortcutTarget.executablePath,
+      arguments: [getShortcutArguments(deepLink)],
+      iconPath,
+    });
+
+    if (!createdBundle) {
+      throw new Error("Failed to create desktop shortcut.");
     }
 
     return true;
