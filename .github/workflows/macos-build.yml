@@ -1,0 +1,92 @@
+name: macOS Build
+
+# Fork-specific workflow. It lives only on the macOS branch and never touches
+# the upstream Windows/Linux workflows, so it stays merge-safe with upstream.
+on:
+  push:
+    branches:
+      - macos-native
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ARTIFACT_RETENTION_DAYS: 14
+
+jobs:
+  build:
+    name: Build macOS (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: arm64
+          - os: macos-13
+            arch: x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.21.0
+          cache: "yarn"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: native/hydra-native -> target
+          shared-key: native-${{ runner.os }}-${{ runner.arch }}
+          cache-bin: false
+
+      # build-torrent-bridge.cjs keeps its vcpkg checkout and installed packages
+      # under ~/.cache/hydra. Caching that directory makes repeat builds fast.
+      - name: Cache vcpkg packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/hydra
+          key: vcpkg-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('native/torrent-bridge/**/vcpkg*.json', 'native/torrent-bridge/**/triplets/**') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+
+      - name: Build macOS app
+        run: yarn build:mac --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          MAIN_VITE_API_URL: ${{ vars.MAIN_VITE_API_URL || 'https://hydra-api-us-east-1.losbroxas.org' }}
+          MAIN_VITE_AUTH_URL: ${{ vars.MAIN_VITE_AUTH_URL || 'https://auth.hydra.losbroxas.org' }}
+          MAIN_VITE_CHECKOUT_URL: ${{ vars.MAIN_VITE_CHECKOUT_URL || 'https://checkout.hydralauncher.gg' }}
+          MAIN_VITE_NIMBUS_API_URL: ${{ vars.MAIN_VITE_NIMBUS_API_URL }}
+          MAIN_VITE_EXTERNAL_RESOURCES_URL: ${{ vars.MAIN_VITE_EXTERNAL_RESOURCES_URL }}
+          RENDERER_VITE_EXTERNAL_RESOURCES_URL: ${{ vars.RENDERER_VITE_EXTERNAL_RESOURCES_URL }}
+          MAIN_VITE_LAUNCHER_SUBDOMAIN: ${{ vars.MAIN_VITE_LAUNCHER_SUBDOMAIN }}
+          RENDERER_VITE_REAL_DEBRID_REFERRAL_ID: ${{ vars.RENDERER_VITE_REAL_DEBRID_REFERRAL_ID }}
+          RENDERER_VITE_TORBOX_REFERRAL_CODE: ${{ vars.RENDERER_VITE_TORBOX_REFERRAL_CODE }}
+          RENDERER_VITE_SENTRY_DSN: ${{ vars.RENDERER_VITE_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload macOS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hydra-macos-${{ matrix.arch }}
+          retention-days: ${{ env.ARTIFACT_RETENTION_DAYS }}
+          if-no-files-found: error
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/*.yml
