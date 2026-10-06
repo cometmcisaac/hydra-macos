@@ -137,6 +137,36 @@ The build reads the usual `MAIN_VITE_*` / `RENDERER_VITE_*` variables. Public
 production defaults are baked into the workflow; override them with repository
 Actions **Variables** if you point at your own backend.
 
+### Releases
+
+Pushing a tag matching `v*-macos` (for example `v4.1.6-macos`) builds both
+architectures and then publishes a GitHub **release** with the DMGs and zips
+attached, using the architecture-specific names (`Hydra-<version>-arm64.dmg`,
+`Hydra-<version>-x64.dmg`, and the matching zips).
+
+```sh
+git tag v4.1.6-macos
+git push origin v4.1.6-macos
+```
+
+The `-macos` suffix keeps these tags distinct from upstream's `vX.Y.Z` tags, so
+fetching upstream tags never collides. If you release the same version again,
+the workflow uploads the artifacts with `--clobber` instead of failing.
+
+**Fork note — disable upstream's deploy workflows.** Upstream's
+`trigger-lp.yml` (landing page) and `update-aur.yml` (Arch AUR package) run on
+`release: published` and will fail here because the fork has none of their
+secrets. Disable them once per fork (no file edits needed, so upstream merges
+stay clean):
+
+```sh
+gh workflow disable "Trigger Landing Page Build"
+gh workflow disable "Update AUR Package"
+```
+
+The remaining upstream workflows only trigger on `main`, `release/**`, or pull
+requests, so they never run from `macos-native` and can be left enabled.
+
 ---
 
 ## Staying in sync with upstream
@@ -174,7 +204,12 @@ cloud-save platform selection overlaps the fork's macOS resolution — keep both
 When upstream cuts a release, bump the version from the release branch:
 
 ```sh
+git fetch upstream
 git merge upstream/release/vX.Y.Z
+yarn typecheck && yarn test
+git push origin macos-native
+git tag vX.Y.Z-macos
+git push origin vX.Y.Z-macos   # builds and publishes the macOS release
 ```
 
 ---
