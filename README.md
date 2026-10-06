@@ -12,7 +12,9 @@
 > [hydralauncher/hydra](https://github.com/hydralauncher/hydra). It adds Windows
 > games via Steam Play / NotProton, CrossOver &amp; Bottles detection, Wine-prefix
 > cloud saves, and real macOS application shortcuts — while staying mergeable
-> with upstream. See **[docs/macos.md](./docs/macos.md)**.
+> with upstream. Prebuilt macOS releases are on the
+> [releases page](https://github.com/cometmcisaac/hydra-macos/releases); see
+> **[docs/macos.md](./docs/macos.md)** for everything else.
 
 [![build](https://img.shields.io/github/actions/workflow/status/hydralauncher/hydra/build.yml)](https://github.com/hydralauncher/hydra/actions)
 [![release](https://img.shields.io/github/package-json/v/hydralauncher/hydra)](https://github.com/hydralauncher/hydra/releases)
@@ -47,15 +49,19 @@ Upstream Hydra targets Windows and Linux. This fork adds macOS support:
 Full details, build instructions, and the upstream-sync procedure live in
 **[docs/macos.md](./docs/macos.md)**.
 
-### Quick start (macOS)
+### Download / quick start (macOS)
+
+Grab the latest DMG for your Mac from the
+[releases page](https://github.com/cometmcisaac/hydra-macos/releases) (arm64 for
+Apple Silicon, x64 for Intel). Releases are unsigned; after copying to
+`/Applications` run `xattr -cr /Applications/Hydra.app` before opening.
+
+Or build it yourself:
 
 ```sh
 yarn install
 yarn build:mac          # -> dist/Hydra-<version>.dmg
 ```
-
-Builds are unsigned; after copying to `/Applications` run
-`xattr -cr /Applications/Hydra.app` before opening.
 
 ### Keeping the fork up to date
 
