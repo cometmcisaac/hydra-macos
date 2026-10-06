@@ -45,6 +45,9 @@ Upstream Hydra targets Windows and Linux. This fork adds macOS support:
   Wine prefix; native macOS games keep normal save locations.
 - **Application shortcuts** — "Create shortcut" writes a real `.app` bundle to
   `/Applications` that relaunches the game through Hydra.
+- **Update notifications** — the app tells you when a newer release of this fork
+  is available and links to the download page (unsigned macOS builds can't
+  self-install).
 
 Full details, build instructions, and the upstream-sync procedure live in
 **[docs/macos.md](./docs/macos.md)**.

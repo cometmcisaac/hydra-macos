@@ -46,10 +46,12 @@ crashReporter.start({
 
 const { autoUpdater } = updater;
 
+// Fork builds point the update feed at their own GitHub releases via env;
+// unset builds keep the upstream feed so upstream stays the safe default.
 autoUpdater.setFeedURL({
   provider: "github",
-  owner: "hydralauncher",
-  repo: "hydra",
+  owner: import.meta.env.MAIN_VITE_UPDATE_FEED_OWNER || "hydralauncher",
+  repo: import.meta.env.MAIN_VITE_UPDATE_FEED_REPO || "hydra",
 });
 
 autoUpdater.logger = logger;

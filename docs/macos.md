@@ -22,6 +22,7 @@ without rewriting history. See [Staying in sync with upstream](#staying-in-sync-
 | **Cloud saves in Wine prefixes**  | Cloud-save paths for Windows games are resolved inside the Wine prefix (reusing the existing Windows→Wine translation), while native macOS games keep the `mac` platform. | `src/main/services/cloud-save/cloud-save-platform.ts`                                              |
 | **macOS executable picker**       | The file picker accepts both `.app` (native) and `.exe` (Windows) on macOS.                                                                                               | `src/shared/constants.ts`                                                                          |
 | **Application shortcuts**         | "Create shortcut" writes a real `.app` bundle to `/Applications` (or `~/Applications`) that relaunches the game through Hydra.                                            | `src/main/helpers/create-macos-app-shortcut.ts`, `src/main/events/library/create-game-shortcut.ts` |
+| **Update notifications**          | The app shows an in-app "new version available" banner tied to this fork's own releases (notify-only; links to the download page).                                        | `src/main/index.ts`, `src/renderer/src/components/header/auto-update-sub-header.tsx`               |
 
 ---
 
@@ -153,6 +154,45 @@ The `-macos` suffix keeps these tags distinct from upstream's `vX.Y.Z` tags, so
 fetching upstream tags never collides. If you release the same version again,
 the workflow uploads the artifacts with `--clobber` instead of failing.
 
+### Update notifications
+
+Fork builds point the in-app updater at **this fork's** GitHub releases, so
+users see a "_Version X is available — download_" banner when a newer release is
+published here. The banner links to the fork's releases page; it does not
+download or install anything by itself.
+
+This is deliberate. macOS automatic installation (Squirrel.Mac) **requires a
+code-signed app**, which an unsigned fork build cannot satisfy — `quitAndInstall`
+would silently do nothing. Instead the fork uses electron-updater's notify path:
+`UpdateManager` already disables auto-install on macOS, so `checkForUpdates`
+only reads the release channel file (`latest-mac.yml`) and emits
+`update-available`. No signature and no download are involved.
+
+Two things make this work:
+
+1. **The feed owner/repo.** `src/main/index.ts` reads
+   `MAIN_VITE_UPDATE_FEED_OWNER` / `MAIN_VITE_UPDATE_FEED_REPO` (default
+   `hydralauncher` / `hydra`), and the banner link reads the renderer-side
+   `RENDERER_VITE_UPDATE_FEED_OWNER` / `RENDERER_VITE_UPDATE_FEED_REPO`. The
+   macOS workflow sets all four to this fork.
+2. **A published `latest-mac.yml`.** electron-updater fetches it from
+   `/releases/download/<tag>/latest-mac.yml`. The workflow's release job stages
+   it next to the zips, rewriting its `path`/`url` to the architecture-specific
+   zip name so the channel file matches the attached asset.
+
+**Versions track upstream.** The fork never bumps `package.json`; it merges the
+upstream version, and releases reuse that number. A banner therefore appears
+only when a version **newer** than the installed one is published (for example,
+upstream cuts `4.1.7` and you publish `v4.1.7-macos`). Re-releasing the same
+version does not notify, which is intended.
+
+To verify a release is updatable, the channel file must exist:
+
+```sh
+curl -sI https://github.com/<you>/hydra-macos/releases/download/vX.Y.Z-macos/latest-mac.yml
+# HTTP/2 200
+```
+
 **Fork note — disable upstream's deploy workflows.** Upstream's
 `trigger-lp.yml` (landing page) and `update-aur.yml` (Arch AUR package) run on
 `release: published` and will fail here because the fork has none of their
@@ -218,6 +258,9 @@ git push origin vX.Y.Z-macos   # builds and publishes the macOS release
 
 - **Unsigned builds.** There is no Developer ID certificate; distribution is
   manual and requires `xattr -cr` (see above).
+- **No automatic install on macOS.** Because the app is unsigned, the update
+  banner links to the download page rather than self-installing (see
+  [Update notifications](#update-notifications)).
 - **Steam overlay / achievements** are only available for games launched
   through Steam itself; Hydra-launched shortcuts may not show them.
 - **NotProton required.** Windows-game launch assumes Steam Play + NotProton is
@@ -240,4 +283,6 @@ src/main/services/steam-shortcuts/notproton-prefix.ts        NotProton/Wine pref
 src/main/services/cloud-save/cloud-save-platform.ts          cloud-save platform mapping
 src/shared/constants.ts                                      executable picker filters
 src/main/events/library/create-game-shortcut.ts              shortcut entry point
+src/main/index.ts                                            update feed pointing at fork releases
+src/renderer/src/components/header/auto-update-sub-header.tsx update banner + download link
 ```

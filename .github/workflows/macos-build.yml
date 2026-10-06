@@ -91,6 +91,12 @@ jobs:
           RENDERER_VITE_SENTRY_DSN: ${{ vars.RENDERER_VITE_SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Point the in-app electron-updater at this fork's releases so users
+          # see "update available" when a newer version tag is published here.
+          MAIN_VITE_UPDATE_FEED_OWNER: cometmcisaac
+          MAIN_VITE_UPDATE_FEED_REPO: hydra-macos
+          RENDERER_VITE_UPDATE_FEED_OWNER: cometmcisaac
+          RENDERER_VITE_UPDATE_FEED_REPO: hydra-macos
 
       - name: Upload macOS build
         uses: actions/upload-artifact@v4
@@ -141,6 +147,23 @@ jobs:
           cp artifacts/arm64/*.zip "release/Hydra-${VERSION}-arm64-mac.zip"
           cp artifacts/x64/*.zip "release/Hydra-${VERSION}-mac.zip"
           ls -lh release
+
+          # electron-updater fetches latest-mac.yml from the tag's download path
+          # to detect a new version. autoDownload is off on macOS (the app only
+          # shows a download notice), so the channel file is read but never used
+          # to fetch anything — no signature is involved. Publish it from the
+          # arm64 build; its zip entry already matches the staged name, and the
+          # only rewrite needed is the generic DMG filename.
+          node - <<'NODE'
+          const fs = require("fs");
+          const version = require("./package.json").version;
+          const dmg = `Hydra-${version}-arm64.dmg`;
+          const yml = fs
+            .readFileSync("artifacts/arm64/latest-mac.yml", "utf8")
+            .replace(/^(\s*- url:).*\.dmg\s*$/gm, `$1 ${dmg}`);
+          fs.writeFileSync("release/latest-mac.yml", yml);
+          console.log(yml);
+          NODE
 
       - name: Publish release
         env:

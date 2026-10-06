@@ -5,8 +5,18 @@ import { Link } from "../link/link";
 import "./auto-update-header.scss";
 import type { AppUpdaterEvent } from "@types";
 
-export const releasesPageUrl =
+const upstreamReleasesPageUrl =
   "https://github.com/hydralauncher/hydra/releases/latest";
+
+// Fork builds set RENDERER_VITE_UPDATE_FEED_OWNER/REPO so the download link
+// points at the fork's releases; unset builds fall back to the upstream URL.
+const forkFeedOwner = import.meta.env.RENDERER_VITE_UPDATE_FEED_OWNER;
+const forkFeedRepo = import.meta.env.RENDERER_VITE_UPDATE_FEED_REPO;
+
+export const releasesPageUrl =
+  forkFeedOwner && forkFeedRepo
+    ? `https://github.com/${forkFeedOwner}/${forkFeedRepo}/releases/latest`
+    : upstreamReleasesPageUrl;
 
 export function AutoUpdateSubHeader() {
   const [isReadyToInstall, setIsReadyToInstall] = useState(false);
