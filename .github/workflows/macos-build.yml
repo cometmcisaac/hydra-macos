@@ -2,10 +2,16 @@ name: macOS Build
 
 # Fork-specific workflow. It lives only on the macOS branch and never touches
 # the upstream Windows/Linux workflows, so it stays merge-safe with upstream.
+#
+# - Pushes to macos-native build unsigned arm64 + x64 artifacts.
+# - Pushing a tag like v4.1.6-macos builds and then publishes a GitHub release
+#   with the DMGs/zip attached.
 on:
   push:
     branches:
       - macos-native
+    tags:
+      - "v*-macos"
   workflow_dispatch:
 
 concurrency:
@@ -97,3 +103,58 @@ jobs:
             dist/*.zip
             dist/*.blockmap
             dist/*.yml
+
+  # Runs only for tag pushes (e.g. v4.1.6-macos). Reuses the artifacts built by
+  # the matrix above so the release ships the exact bits that were built.
+  release:
+    name: Publish macOS release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Download arm64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Hydra-macos-arm64
+          path: artifacts/arm64
+
+      - name: Download x64 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Hydra-macos-x64
+          path: artifacts/x64
+
+      - name: Stage release assets
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p release
+          # electron-builder gives both architectures the same DMG filename, so
+          # disambiguate before attaching them to a single release.
+          cp artifacts/arm64/*.dmg "release/Hydra-${VERSION}-arm64.dmg"
+          cp artifacts/x64/*.dmg "release/Hydra-${VERSION}-x64.dmg"
+          cp artifacts/arm64/*.zip "release/Hydra-${VERSION}-arm64-mac.zip"
+          cp artifacts/x64/*.zip "release/Hydra-${VERSION}-mac.zip"
+          ls -lh release
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" release/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Hydra ${TAG#v} (macOS)" \
+              --notes "Unsigned macOS build of the Hydra fork (arm64 + x64). After installing, clear the quarantine attribute:
+
+          xattr -cr /Applications/Hydra.app"
+          fi
