@@ -65,6 +65,11 @@ jobs:
       - name: Build macOS app
         run: yarn build:mac --publish never
         env:
+          # The renderer bundle peaks around 3 GB while bundling. GitHub's
+          # standard macOS runners have 7 GB RAM, so Node derives a default
+          # heap ceiling that is too low and the build aborts with exit 134
+          # (JavaScript heap out of memory). Raise it explicitly.
+          NODE_OPTIONS: "--max-old-space-size=4096"
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           MAIN_VITE_API_URL: ${{ vars.MAIN_VITE_API_URL || 'https://hydra-api-us-east-1.losbroxas.org' }}
           MAIN_VITE_AUTH_URL: ${{ vars.MAIN_VITE_AUTH_URL || 'https://auth.hydra.losbroxas.org' }}
