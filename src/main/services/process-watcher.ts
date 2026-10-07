@@ -57,6 +57,7 @@ import {
 } from "./linux-game-capture-session";
 import { updateGameRecord } from "./game-record-updater";
 import { GameExecutables } from "./game-executables";
+import { restoreCrossoverSettingsForGame } from "./mac-windows/crossover-settings";
 
 export { gamesPlaytime };
 export { isGameRunning } from "./game-running-state";
@@ -577,6 +578,10 @@ const onCloseGame = (game: Game) => {
   stopLinuxGameCaptureSession(gameKey);
   PowerSaveBlockerManager.markGameClosed(gameKey);
   abortAchievementMetadataExport(gameKey);
+
+  if (process.platform === "darwin") {
+    void restoreCrossoverSettingsForGame(gameKey);
+  }
 
   const { localDelta: delta, syncDelta: deltaToSync } = getGamePlaytimeDeltas(
     gamePlaytime,

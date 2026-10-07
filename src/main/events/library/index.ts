@@ -50,6 +50,7 @@ import "./set-game-visibility";
 import "./toggle-automatic-cloud-sync";
 import "./toggle-game-gamemode";
 import "./toggle-game-mangohud";
+import "./update-game-crossover-settings";
 import "./toggle-game-pin";
 import "./update-custom-game";
 import "./update-executable-path";

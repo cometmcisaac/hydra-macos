@@ -66,6 +66,10 @@ export interface Game {
   launchOptions?: string | null;
   autoRunMangohud?: boolean | null;
   autoRunGamemode?: boolean | null;
+  /** Per-game CrossOver (Wine) bottle settings, applied at launch. */
+  crossoverSettings?:
+    | import("../shared/crossover-settings").GameCrossoverSettings
+    | null;
   favorite?: boolean;
   isHiddenFromOthers?: boolean;
   isConcealed?: boolean;

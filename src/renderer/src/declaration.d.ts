@@ -351,6 +351,11 @@ declare global {
       objectId: string,
       autoRunGamemode: boolean
     ) => Promise<void>;
+    updateGameCrossoverSettings: (
+      shop: GameShop,
+      objectId: string,
+      settings: import("@shared").GameCrossoverSettings
+    ) => Promise<void>;
     isGamemodeAvailable: () => Promise<boolean>;
     isSteamAppExecutable: (
       appId: string,

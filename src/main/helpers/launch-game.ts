@@ -36,6 +36,7 @@ import {
   type MacWindowsBackend,
 } from "@main/services/mac-windows/mac-windows-runtime";
 import { launchWindowsGameThroughSteam } from "@main/services/steam-shortcuts/steam-shortcuts";
+import { applyCrossoverSettingsForLaunch } from "@main/services/mac-windows/crossover-settings";
 import { runAchievementMetadataExport } from "@main/services/achievements/metadata-export";
 import { parseExecutablePath } from "../events/helpers/parse-executable-path";
 import { isGamemodeAvailable } from "./is-gamemode-available";
@@ -619,6 +620,26 @@ const launchResolvedGame = async (
   }
 
   if (process.platform !== "linux") {
+    if (
+      process.platform === "darwin" &&
+      macWindowsBackend === "crossover" &&
+      compatibilityContext?.winePrefixPath &&
+      isWindowsExecutable(parsedPath)
+    ) {
+      const game = await gamesSublevel.get(gameKey).catch(() => null);
+      await applyCrossoverSettingsForLaunch(
+        gameKey,
+        compatibilityContext.winePrefixPath,
+        game?.crossoverSettings
+      ).catch((error: unknown) => {
+        logger.warn("Failed to apply CrossOver settings at launch", {
+          shop,
+          objectId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }
+
     return launchNatively(parsedPath, launchOptions, useMangohud, useGamemode);
   }
 

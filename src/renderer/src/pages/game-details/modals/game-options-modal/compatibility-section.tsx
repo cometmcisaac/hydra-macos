@@ -8,8 +8,10 @@ import {
   TextField,
 } from "@renderer/components";
 import type { LibraryGame, ProtonVersion } from "@types";
+import type { GameCrossoverSettings } from "@shared";
 import { FileDirectoryIcon, LinkExternalIcon } from "@primer/octicons-react";
 import { Tooltip } from "react-tooltip";
+import { CrossoverSettingsSection } from "./crossover-settings-section";
 
 interface CompatibilitySettingsSectionProps {
   game: LibraryGame;
@@ -31,6 +33,9 @@ interface CompatibilitySettingsSectionProps {
   onChangeGamemodeState: (value: boolean) => Promise<void>;
   onChangeMangohudState: (value: boolean) => Promise<void>;
   onChangeProtonVersion: (value: string) => void;
+  /** Per-game CrossOver settings, shown and applied only on macOS. */
+  crossoverSettings: GameCrossoverSettings;
+  onChangeCrossoverSettings: (settings: GameCrossoverSettings) => Promise<void>;
   /** "macos" shows only the prefix (CrossOver bottle) picker. */
   variant?: "linux" | "macos";
 }
@@ -55,6 +60,8 @@ export function CompatibilitySettingsSection({
   onChangeGamemodeState,
   onChangeMangohudState,
   onChangeProtonVersion,
+  crossoverSettings,
+  onChangeCrossoverSettings,
   variant = "linux",
 }: Readonly<CompatibilitySettingsSectionProps>) {
   const { t } = useTranslation("game_details");
@@ -179,7 +186,6 @@ export function CompatibilitySettingsSection({
             <div className="game-options-modal__header">
               <h2>{t("additional_options")}</h2>
             </div>
-
             <div className="game-options-modal__gamemode-toggle">
               <CheckboxField
                 label={
@@ -309,6 +315,13 @@ export function CompatibilitySettingsSection({
             />
           </div>
         </>
+      )}
+
+      {isMacOs && (
+        <CrossoverSettingsSection
+          settings={crossoverSettings}
+          onChange={onChangeCrossoverSettings}
+        />
       )}
     </>
   );

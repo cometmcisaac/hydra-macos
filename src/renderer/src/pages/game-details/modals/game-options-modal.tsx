@@ -14,6 +14,8 @@ import {
   getCloudSaveAccessAction,
   getGameExecutableFilters,
   MANGOHUD_SITE_URL,
+  normalizeGameCrossoverSettings,
+  type GameCrossoverSettings,
 } from "@shared";
 
 import type {
@@ -140,6 +142,10 @@ export function GameOptionsModal({
   const [autoRunGamemode, setAutoRunGamemode] = useState<boolean>(
     game.autoRunGamemode === true
   );
+  const [crossoverSettings, setCrossoverSettings] =
+    useState<GameCrossoverSettings>(() =>
+      normalizeGameCrossoverSettings(game.crossoverSettings)
+    );
   const [gamemodeAvailable, setGamemodeAvailable] = useState(false);
   const [mangohudAvailable, setMangohudAvailable] = useState(false);
   const [winetricksAvailable, setWinetricksAvailable] = useState(false);
@@ -306,6 +312,11 @@ export function GameOptionsModal({
   useEffect(() => {
     setAutoRunGamemode(game.autoRunGamemode === true);
   }, [game.autoRunGamemode]);
+  useEffect(() => {
+    setCrossoverSettings(
+      normalizeGameCrossoverSettings(game.crossoverSettings)
+    );
+  }, [game.crossoverSettings]);
 
   useEffect(() => {
     if (!visible || globalThis.window.electron.platform !== "linux") return;
@@ -717,6 +728,18 @@ export function GameOptionsModal({
       game.shop,
       game.objectId,
       value
+    );
+    updateGame();
+  };
+
+  const handleChangeCrossoverSettings = async (
+    settings: GameCrossoverSettings
+  ) => {
+    setCrossoverSettings(settings);
+    await globalThis.window.electron.updateGameCrossoverSettings(
+      game.shop,
+      game.objectId,
+      settings
     );
     updateGame();
   };
@@ -1325,6 +1348,8 @@ export function GameOptionsModal({
                   onChangeGamemodeState={handleChangeGamemodeState}
                   onChangeMangohudState={handleChangeMangohudState}
                   onChangeProtonVersion={handleChangeProtonVersion}
+                  crossoverSettings={crossoverSettings}
+                  onChangeCrossoverSettings={handleChangeCrossoverSettings}
                   variant={isMacWindowsGame ? "macos" : "linux"}
                 />
               )}

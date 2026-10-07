@@ -76,6 +76,7 @@ import type {
   SteamConnectErrorCode,
   ExtractionFailure,
 } from "@types";
+import type { GameCrossoverSettings } from "@shared";
 import type { AuthPage } from "@shared";
 import type { AxiosProgressEvent } from "axios";
 
@@ -969,6 +970,12 @@ contextBridge.exposeInMainWorld("electron", {
     autoRunGamemode: boolean
   ) =>
     ipcRenderer.invoke("toggleGameGamemode", shop, objectId, autoRunGamemode),
+  updateGameCrossoverSettings: (
+    shop: GameShop,
+    objectId: string,
+    settings: GameCrossoverSettings
+  ) =>
+    ipcRenderer.invoke("updateGameCrossoverSettings", shop, objectId, settings),
   isGamemodeAvailable: () => ipcRenderer.invoke("isGamemodeAvailable"),
   isSteamAppExecutable: (appId: string, executablePath: string) =>
     ipcRenderer.invoke("isSteamAppExecutable", appId, executablePath),
