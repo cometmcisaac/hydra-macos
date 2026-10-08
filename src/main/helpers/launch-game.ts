@@ -627,16 +627,33 @@ const launchResolvedGame = async (
       isWindowsExecutable(parsedPath)
     ) {
       const game = await gamesSublevel.get(gameKey).catch(() => null);
+      logger.info("[CrossOver] Preparing bottle settings before launch", {
+        gameKey,
+        shop,
+        objectId,
+        bottlePath: compatibilityContext.winePrefixPath,
+        hasSettings: Boolean(game?.crossoverSettings),
+      });
       await applyCrossoverSettingsForLaunch(
         gameKey,
         compatibilityContext.winePrefixPath,
-        game?.crossoverSettings
+        game?.crossoverSettings,
+        logger
       ).catch((error: unknown) => {
         logger.warn("Failed to apply CrossOver settings at launch", {
           shop,
           objectId,
           error: error instanceof Error ? error.message : String(error),
         });
+      });
+    } else if (process.platform === "darwin") {
+      logger.info("[CrossOver] Skipping bottle settings for this launch", {
+        gameKey,
+        shop,
+        objectId,
+        macWindowsBackend: macWindowsBackend ?? null,
+        bottlePath: compatibilityContext?.winePrefixPath ?? null,
+        isWindowsExecutable: isWindowsExecutable(parsedPath),
       });
     }
 

@@ -8,6 +8,14 @@ import {
 } from "../../../shared/crossover-settings.js";
 
 /**
+ * Minimal logging surface, injected by the caller so this module stays free of
+ * Electron imports (and therefore testable under ts-node).
+ */
+export interface CrossoverSettingsLogger {
+  info: (message: string, context?: Record<string, unknown>) => void;
+}
+
+/**
  * CrossOver stores per-bottle settings as environment variables in
  * `cxbottle.conf`, and its launcher overwrites whatever environment Hydra
  * passes at launch with those values. To make a per-game choice actually take
@@ -195,22 +203,40 @@ export interface CrossoverBottleState {
  */
 export const applyCrossoverSettingsToBottle = async (
   bottlePath: string,
-  settings: GameCrossoverSettings
+  settings: GameCrossoverSettings,
+  gameKey?: string,
+  log?: CrossoverSettingsLogger
 ): Promise<CrossoverBottleState | null> => {
   const config = await readCrossoverBottleConfig(bottlePath);
-  if (!config) return null;
-
-  const updated = applyCrossoverSettingsToConfig(config.content, settings);
-  if (updated === config.content) {
-    // Nothing to change; still return state so the caller's map stays uniform.
-    return {
+  if (!config) {
+    log?.info("[CrossOver] Skipped settings: no bottle config file", {
+      gameKey,
       bottlePath,
-      configPath: config.configPath,
-      originalContent: config.content,
-    };
+    });
+    return null;
   }
 
-  await writeCrossoverBottleConfig(config.configPath, updated);
+  const entries = getCrossoverSettingEnvValues(settings);
+  const updated = applyCrossoverSettingsToConfig(config.content, settings);
+
+  if (updated === config.content) {
+    log?.info("[CrossOver] Settings already matched the bottle", {
+      gameKey,
+      bottlePath,
+      keys: entries.map((entry) => entry.key),
+      changed: false,
+    });
+  } else {
+    await writeCrossoverBottleConfig(config.configPath, updated);
+    log?.info("[CrossOver] Applied settings to bottle", {
+      gameKey,
+      bottlePath,
+      configPath: config.configPath,
+      keys: entries.map((entry) => entry.key),
+      values: entries.map((entry) => `${entry.key}=${entry.value}`),
+      changed: true,
+    });
+  }
 
   return {
     bottlePath,
@@ -244,21 +270,42 @@ const pendingCrossoverBottleStates = new Map<string, CrossoverBottleState>();
 export const applyCrossoverSettingsForLaunch = async (
   gameKey: string,
   bottlePath: string,
-  settings: GameCrossoverSettings | null | undefined
+  settings: GameCrossoverSettings | null | undefined,
+  log?: CrossoverSettingsLogger
 ): Promise<boolean> => {
-  if (!hasAnyCrossoverSetting(settings)) return false;
+  if (!hasAnyCrossoverSetting(settings)) {
+    log?.info("[CrossOver] No per-game settings set; bottle left as-is", {
+      gameKey,
+      bottlePath,
+    });
+    return false;
+  }
 
-  const state = await applyCrossoverSettingsToBottle(bottlePath, settings!);
+  const state = await applyCrossoverSettingsToBottle(
+    bottlePath,
+    settings!,
+    gameKey,
+    log
+  );
   if (!state) return false;
 
   pendingCrossoverBottleStates.set(gameKey, state);
   return true;
 };
 
-export const restoreCrossoverSettingsForGame = async (gameKey: string) => {
+export const restoreCrossoverSettingsForGame = async (
+  gameKey: string,
+  log?: CrossoverSettingsLogger
+) => {
   const state = pendingCrossoverBottleStates.get(gameKey);
   if (!state) return;
 
   pendingCrossoverBottleStates.delete(gameKey);
   await restoreCrossoverBottle(state);
+
+  log?.info("[CrossOver] Restored bottle after game exit", {
+    gameKey,
+    bottlePath: state.bottlePath,
+    configPath: state.configPath,
+  });
 };

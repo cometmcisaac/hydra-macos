@@ -580,7 +580,7 @@ const onCloseGame = (game: Game) => {
   abortAchievementMetadataExport(gameKey);
 
   if (process.platform === "darwin") {
-    void restoreCrossoverSettingsForGame(gameKey);
+    void restoreCrossoverSettingsForGame(gameKey, logger);
   }
 
   const { localDelta: delta, syncDelta: deltaToSync } = getGamePlaytimeDeltas(
