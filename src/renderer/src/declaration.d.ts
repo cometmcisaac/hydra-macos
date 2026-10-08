@@ -1161,6 +1161,7 @@ declare global {
     deleteTempFile: (filePath: string) => Promise<void>;
     platform: NodeJS.Platform;
     isWayland: boolean;
+    cpuModel: string;
 
     /* Auto update */
     onAutoUpdaterEvent: (

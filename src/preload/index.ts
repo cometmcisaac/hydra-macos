@@ -2,6 +2,7 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 import { contextBridge, ipcRenderer } from "electron";
 import { randomUUID } from "node:crypto";
+import os from "node:os";
 
 import type {
   SystemPowerAction,
@@ -1623,6 +1624,7 @@ contextBridge.exposeInMainWorld("electron", {
     process.platform === "linux" &&
     (process.env.XDG_SESSION_TYPE?.toLowerCase() === "wayland" ||
       Boolean(process.env.WAYLAND_DISPLAY)),
+  cpuModel: os.cpus()[0]?.model ?? "",
 
   /* Auto update */
   onAutoUpdaterEvent: (cb: (value: AppUpdaterEvent) => void) => {

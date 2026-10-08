@@ -5,6 +5,7 @@ import {
   DEFAULT_GAME_CROSSOVER_SETTINGS,
   hasAnyCrossoverSetting,
   normalizeGameCrossoverSettings,
+  supportsAppleRayTracing,
 } from "./crossover-settings.js";
 
 describe("normalizeGameCrossoverSettings", () => {
@@ -77,5 +78,28 @@ describe("hasAnyCrossoverSetting", () => {
       }),
       true
     );
+  });
+});
+
+describe("supportsAppleRayTracing", () => {
+  it("hides the setting on M1 and M2 chips", () => {
+    assert.equal(supportsAppleRayTracing("Apple M1"), false);
+    assert.equal(supportsAppleRayTracing("Apple M1 Pro"), false);
+    assert.equal(supportsAppleRayTracing("Apple M1 Max"), false);
+    assert.equal(supportsAppleRayTracing("Apple M2"), false);
+    assert.equal(supportsAppleRayTracing("Apple M2 Ultra"), false);
+  });
+
+  it("shows the setting on M3 and newer", () => {
+    assert.equal(supportsAppleRayTracing("Apple M3"), true);
+    assert.equal(supportsAppleRayTracing("Apple M3 Max"), true);
+    assert.equal(supportsAppleRayTracing("Apple M4 Pro"), true);
+    assert.equal(supportsAppleRayTracing("Apple M10"), true);
+  });
+
+  it("defaults to supported for non-Apple-silicon strings", () => {
+    assert.equal(supportsAppleRayTracing(""), true);
+    assert.equal(supportsAppleRayTracing("Intel(R) Core(TM) i7-9750H"), true);
+    assert.equal(supportsAppleRayTracing("Unknown"), true);
   });
 });

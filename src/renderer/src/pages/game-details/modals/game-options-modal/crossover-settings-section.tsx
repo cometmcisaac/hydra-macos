@@ -4,6 +4,7 @@ import { SelectField } from "@renderer/components";
 import {
   CROSSOVER_GRAPHICS_BACKENDS,
   CROSSOVER_SETTING_LABELS,
+  supportsAppleRayTracing,
   type CrossoverSettingKey,
   type GameCrossoverSettings,
 } from "@shared";
@@ -60,6 +61,14 @@ export function CrossoverSettingsSection({
     value: GameCrossoverSettings[K]
   ) => onChange({ ...settings, [key]: value });
 
+  // Hardware ray tracing needs Apple M3 or newer; M1/M2 chips can't use it.
+  const rayTracingSupported = supportsAppleRayTracing(
+    globalThis.window?.electron?.cpuModel ?? ""
+  );
+  const visibleToggleKeys = TOGGLE_KEYS.filter(
+    (key) => key !== "dxr" || rayTracingSupported
+  );
+
   return (
     <div className="game-options-modal__section">
       <div className="game-options-modal__header">
@@ -85,7 +94,7 @@ export function CrossoverSettingsSection({
           onChange={(event) => update("renderer", event.target.value as never)}
         />
 
-        {TOGGLE_KEYS.map((key) => (
+        {visibleToggleKeys.map((key) => (
           <SelectField
             key={key}
             theme="dark"

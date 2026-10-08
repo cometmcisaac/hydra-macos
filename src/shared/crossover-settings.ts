@@ -111,3 +111,19 @@ export const CROSSOVER_SETTING_LABELS: Record<CrossoverSettingKey, string> = {
   dxr: "Ray tracing (DXR)",
   mtl4: "Metal 4 (MTL4)",
 };
+
+/**
+ * Hardware ray tracing (the DXR setting) requires a GPU with ray tracing
+ * support. Apple's M1 and M2 chips do not have it — it arrived with the M3.
+ *
+ * `cpuModel` is the string Node reports via `os.cpus()[0].model`, e.g.
+ * "Apple M1 Pro", "Apple M3 Max". Anything that is not an Apple-silicon
+ * generation string (e.g. Intel Macs, or unexpected formats) is treated as
+ * supported, so the setting is only hidden when we are certain it cannot work.
+ */
+export const supportsAppleRayTracing = (cpuModel: string): boolean => {
+  const generation = /^Apple M(\d+)/.exec(cpuModel.trim());
+  if (!generation) return true;
+
+  return Number(generation[1]) >= 3;
+};
