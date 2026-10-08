@@ -790,8 +790,6 @@
     "crossover_settings_description": "Applied to this game's CrossOver bottle when you launch it, then restored when you exit. Choose 'Leave unchanged' to keep whatever CrossOver is set to.",
     "crossover_setting_renderer": "Graphics backend (renderer)",
     "crossover_setting_msync": "MSync",
-    "crossover_setting_dxvk": "DXVK",
-    "crossover_setting_d3dmetal": "D3DMetal",
     "crossover_setting_metalFx": "MetalFX",
     "crossover_setting_nvExtensions": "NVIDIA extensions (DXMT)",
     "crossover_setting_dxr": "Ray tracing (DXR)",

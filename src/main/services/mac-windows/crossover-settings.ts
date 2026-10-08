@@ -135,8 +135,6 @@ export const getCrossoverSettingEnvValues = (
   };
 
   toggle(CROSSOVER_SETTING_ENV_KEYS.msync, settings.msync);
-  toggle(CROSSOVER_SETTING_ENV_KEYS.dxvk, settings.dxvk);
-  toggle(CROSSOVER_SETTING_ENV_KEYS.d3dmetal, settings.d3dmetal);
   toggle(CROSSOVER_SETTING_ENV_KEYS.metalFx, settings.metalFx);
   toggle(CROSSOVER_SETTING_ENV_KEYS.nvExtensions, settings.nvExtensions);
   toggle(CROSSOVER_SETTING_ENV_KEYS.dxr, settings.dxr);

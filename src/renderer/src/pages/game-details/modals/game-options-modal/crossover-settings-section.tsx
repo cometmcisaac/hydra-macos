@@ -7,6 +7,7 @@ import {
   type CrossoverSettingKey,
   type GameCrossoverSettings,
 } from "@shared";
+import "./crossover-settings-section.scss";
 
 interface CrossoverSettingsSectionProps {
   settings: GameCrossoverSettings;
@@ -15,8 +16,6 @@ interface CrossoverSettingsSectionProps {
 
 const TOGGLE_KEYS: Exclude<CrossoverSettingKey, "renderer">[] = [
   "msync",
-  "dxvk",
-  "d3dmetal",
   "metalFx",
   "nvExtensions",
   "dxr",
@@ -75,30 +74,32 @@ export function CrossoverSettingsSection({
         </h4>
       </div>
 
-      <SelectField
-        theme="dark"
-        label={t("crossover_setting_renderer", {
-          defaultValue: CROSSOVER_SETTING_LABELS.renderer,
-        })}
-        value={settings.renderer}
-        options={rendererOptions}
-        onChange={(event) => update("renderer", event.target.value as never)}
-      />
-
-      {TOGGLE_KEYS.map((key) => (
+      <div className="crossover-settings__grid">
         <SelectField
-          key={key}
           theme="dark"
-          label={t(`crossover_setting_${key}`, {
-            defaultValue: CROSSOVER_SETTING_LABELS[key],
+          label={t("crossover_setting_renderer", {
+            defaultValue: CROSSOVER_SETTING_LABELS.renderer,
           })}
-          value={toggleToValue(settings[key])}
-          options={toggleOptions}
-          onChange={(event) =>
-            update(key, valueToToggle(event.target.value) as never)
-          }
+          value={settings.renderer}
+          options={rendererOptions}
+          onChange={(event) => update("renderer", event.target.value as never)}
         />
-      ))}
+
+        {TOGGLE_KEYS.map((key) => (
+          <SelectField
+            key={key}
+            theme="dark"
+            label={t(`crossover_setting_${key}`, {
+              defaultValue: CROSSOVER_SETTING_LABELS[key],
+            })}
+            value={toggleToValue(settings[key])}
+            options={toggleOptions}
+            onChange={(event) =>
+              update(key, valueToToggle(event.target.value) as never)
+            }
+          />
+        ))}
+      </div>
     </div>
   );
 }

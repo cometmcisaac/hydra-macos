@@ -41,13 +41,13 @@ const settings = (
 describe("getCrossoverSettingEnvValues", () => {
   it("maps only values that are set", () => {
     const entries = getCrossoverSettingEnvValues(
-      settings({ renderer: "d3dmetal", msync: true, dxvk: false })
+      settings({ renderer: "d3dmetal", msync: true, dxr: false })
     );
 
     assert.deepEqual(entries, [
       { key: "CX_GRAPHICS_BACKEND", value: "d3dmetal" },
       { key: "WINEMSYNC", value: "1" },
-      { key: "WINEDXVK", value: "0" },
+      { key: "D3DM_SUPPORT_DXR", value: "0" },
     ]);
   });
 

@@ -15,10 +15,6 @@ export interface GameCrossoverSettings {
   renderer: CrossoverGraphicsBackend | "";
   /** WINEMSYNC */
   msync: boolean | null;
-  /** WINEDXVK */
-  dxvk: boolean | null;
-  /** WINED3DMETAL */
-  d3dmetal: boolean | null;
   /** D3DM_ENABLE_METALFX */
   metalFx: boolean | null;
   /** DXMT_ENABLE_NVEXT */
@@ -44,8 +40,6 @@ export const CROSSOVER_GRAPHICS_BACKEND_ENV = "CX_GRAPHICS_BACKEND";
 export const CROSSOVER_SETTING_ENV_KEYS = {
   renderer: CROSSOVER_GRAPHICS_BACKEND_ENV,
   msync: "WINEMSYNC",
-  dxvk: "WINEDXVK",
-  d3dmetal: "WINED3DMETAL",
   metalFx: "D3DM_ENABLE_METALFX",
   nvExtensions: "DXMT_ENABLE_NVEXT",
   dxr: "D3DM_SUPPORT_DXR",
@@ -57,8 +51,6 @@ export type CrossoverSettingKey = keyof GameCrossoverSettings;
 export const DEFAULT_GAME_CROSSOVER_SETTINGS: GameCrossoverSettings = {
   renderer: "",
   msync: null,
-  dxvk: null,
-  d3dmetal: null,
   metalFx: null,
   nvExtensions: null,
   dxr: null,
@@ -73,8 +65,6 @@ export const hasAnyCrossoverSetting = (
   return (
     settings.renderer !== "" ||
     settings.msync !== null ||
-    settings.dxvk !== null ||
-    settings.d3dmetal !== null ||
     settings.metalFx !== null ||
     settings.nvExtensions !== null ||
     settings.dxr !== null ||
@@ -106,8 +96,6 @@ export const normalizeGameCrossoverSettings = (
   return {
     renderer,
     msync: asToggle(input.msync),
-    dxvk: asToggle(input.dxvk),
-    d3dmetal: asToggle(input.d3dmetal),
     metalFx: asToggle(input.metalFx),
     nvExtensions: asToggle(input.nvExtensions),
     dxr: asToggle(input.dxr),
@@ -118,8 +106,6 @@ export const normalizeGameCrossoverSettings = (
 export const CROSSOVER_SETTING_LABELS: Record<CrossoverSettingKey, string> = {
   renderer: "Graphics backend (renderer)",
   msync: "MSync",
-  dxvk: "DXVK",
-  d3dmetal: "D3DMetal",
   metalFx: "MetalFX",
   nvExtensions: "NVIDIA extensions (DXMT)",
   dxr: "Ray tracing (DXR)",

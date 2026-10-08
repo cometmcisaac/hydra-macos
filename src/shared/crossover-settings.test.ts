@@ -27,8 +27,6 @@ describe("normalizeGameCrossoverSettings", () => {
     const normalized = normalizeGameCrossoverSettings({
       renderer: "d3dmetal",
       msync: true,
-      dxvk: false,
-      d3dmetal: null,
       metalFx: true,
       nvExtensions: false,
       dxr: null,
@@ -38,8 +36,6 @@ describe("normalizeGameCrossoverSettings", () => {
     assert.deepEqual(normalized, {
       renderer: "d3dmetal",
       msync: true,
-      dxvk: false,
-      d3dmetal: null,
       metalFx: true,
       nvExtensions: false,
       dxr: null,
@@ -77,7 +73,7 @@ describe("hasAnyCrossoverSetting", () => {
     assert.equal(
       hasAnyCrossoverSetting({
         ...DEFAULT_GAME_CROSSOVER_SETTINGS,
-        dxvk: false,
+        dxr: false,
       }),
       true
     );
