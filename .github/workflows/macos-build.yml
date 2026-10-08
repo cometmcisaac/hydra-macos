@@ -6,12 +6,15 @@ name: macOS Build
 # - Pushes to macos-native build unsigned arm64 + x64 artifacts.
 # - Pushing a tag like v4.1.6-macos builds and then publishes a GitHub release
 #   with the DMGs/zip attached.
+# - Tags ending in -experimental (e.g. v4.1.6-macos-experimental) are published
+#   as pre-releases: downloadable, but never the electron-updater "latest".
 on:
   push:
     branches:
       - macos-native
     tags:
       - "v*-macos"
+      - "v*-macos-experimental"
   workflow_dispatch:
 
 concurrency:
@@ -171,11 +174,21 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          # Tags ending in -experimental are published as GitHub pre-releases.
+          # A pre-release is not returned by the /releases/latest API, so it
+          # never becomes the electron-updater feed (users on the stable channel
+          # won't be told to update) while still being downloadable.
+          PRERELEASE_FLAG=""
+          if [[ "$TAG" == *-experimental ]]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
             gh release create "$TAG" release/* \
               --repo "$GITHUB_REPOSITORY" \
+              $PRERELEASE_FLAG \
               --title "Hydra ${TAG#v} (macOS)" \
               --notes "Unsigned macOS build of the Hydra fork (arm64 + x64). After installing, clear the quarantine attribute:
 
