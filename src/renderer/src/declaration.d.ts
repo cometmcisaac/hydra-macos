@@ -168,11 +168,6 @@ declare global {
       shop: GameShop,
       rawPath: string
     ) => Promise<void>;
-    bindRpcs3CloudSaveProfile: (
-      objectId: string,
-      shop: GameShop,
-      cloudProfileId: string
-    ) => Promise<void>;
     deleteGameCloudSaveData: (
       objectId: string,
       shop: GameShop
@@ -1156,6 +1151,10 @@ declare global {
     onGameLauncherStatus: (
       cb: (value: GameLauncherStatusPayload) => void
     ) => () => Electron.IpcRenderer;
+    getGameLauncherStatuses: (
+      shop: GameShop,
+      objectId: string
+    ) => Promise<GameLauncherStatusPayload[]>;
     resetCommonRedistPreflight: () => Promise<void>;
     saveTempFile: (fileName: string, fileData: Uint8Array) => Promise<string>;
     deleteTempFile: (filePath: string) => Promise<void>;
