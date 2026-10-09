@@ -4,17 +4,18 @@ name: macOS Build
 # the upstream Windows/Linux workflows, so it stays merge-safe with upstream.
 #
 # - Pushes to macos-native build unsigned arm64 + x64 artifacts.
-# - Pushing a tag like v4.1.6-macos builds and then publishes a GitHub release
-#   with the DMGs/zip attached.
-# - Tags ending in -experimental (e.g. v4.1.6-macos-experimental) are published
-#   as pre-releases: downloadable, but never the electron-updater "latest".
+# - Tags ending in -macos build and then publish a GitHub release with the
+#   DMGs/zip attached.
+# - Tags containing -experimental (e.g. v4.1.6-macos-experimental, optionally
+#   with a counter like -experimental-2) are published as pre-releases:
+#   downloadable, but never the electron-updater "latest".
 on:
   push:
     branches:
       - macos-native
     tags:
       - "v*-macos"
-      - "v*-macos-experimental"
+      - "v*-macos-experimental*"
   workflow_dispatch:
 
 concurrency:
@@ -174,12 +175,13 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          # Tags ending in -experimental are published as GitHub pre-releases.
+          # Tags containing -experimental are published as GitHub pre-releases.
+          # The suffix may carry a counter, e.g. v4.1.6-macos-experimental-2.
           # A pre-release is not returned by the /releases/latest API, so it
           # never becomes the electron-updater feed (users on the stable channel
           # won't be told to update) while still being downloadable.
           PRERELEASE_FLAG=""
-          if [[ "$TAG" == *-experimental ]]; then
+          if [[ "$TAG" == *-experimental* ]]; then
             PRERELEASE_FLAG="--prerelease"
           fi
 
