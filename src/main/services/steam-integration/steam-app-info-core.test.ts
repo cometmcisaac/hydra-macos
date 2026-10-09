@@ -439,7 +439,9 @@ describe("resolveSteamAppExecutable", () => {
       { recursive: true }
     );
 
-    const appInfo = makeAppInfo([{ executable: "game.app", oslist: ["macos"] }]);
+    const appInfo = makeAppInfo([
+      { executable: "game.app", oslist: ["macos"] },
+    ]);
 
     const resolved = await resolveSteamAppExecutable(
       appInfo,
