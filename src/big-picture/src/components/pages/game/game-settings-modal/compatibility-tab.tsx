@@ -13,6 +13,11 @@ import {
 } from "../../../common";
 import { useUserPreferences } from "../../../../hooks/use-user-preferences.hook";
 import { SettingsSection } from "../../../../pages/settings/settings-section";
+import { GameCrossoverSettingsSection } from "./crossover-settings-section";
+import {
+  normalizeGameCrossoverSettings,
+  type GameCrossoverSettings,
+} from "@shared";
 
 import "./compatibility-tab.scss";
 
@@ -40,6 +45,8 @@ const GAME_COMPATIBILITY_SETTINGS_MANGOHUD_ID =
 
 interface GameCompatibilitySettingsProps {
   game: LibraryGame;
+  /** "macos" shows the CrossOver bottle picker plus the CrossOver settings. */
+  variant?: "linux" | "macos";
 }
 
 interface ProtonOption {
@@ -63,8 +70,10 @@ type ElectronCompatibilityBridge = Pick<
 
 export function GameCompatibilitySettingsTab({
   game,
+  variant = "linux",
 }: Readonly<GameCompatibilitySettingsProps>) {
   const { t } = useTranslation(["game_details", "big_picture"]);
+  const isMacOs = variant === "macos";
   const userPreferences = useUserPreferences();
   const electron = globalThis.window
     .electron as unknown as ElectronCompatibilityBridge;
@@ -88,12 +97,19 @@ export function GameCompatibilitySettingsTab({
   const [winePickerInitialPath, setWinePickerInitialPath] = useState<
     string | undefined
   >();
+  const [crossoverSettings, setCrossoverSettings] =
+    useState<GameCrossoverSettings>(() =>
+      normalizeGameCrossoverSettings(game.crossoverSettings)
+    );
 
   useEffect(() => {
     setSelectedProtonPath(game.protonPath ?? "");
     setWinePrefixPath(game.winePrefixPath ?? null);
     setAutoRunGamemode(game.autoRunGamemode ?? false);
     setAutoRunMangohud(game.autoRunMangohud ?? false);
+    setCrossoverSettings(
+      normalizeGameCrossoverSettings(game.crossoverSettings)
+    );
   }, [game]);
 
   useEffect(() => {
@@ -232,8 +248,20 @@ export function GameCompatibilitySettingsTab({
     <VerticalFocusGroup className="game-compatibility-settings-tab">
       <SettingsSection
         className="game-compatibility-settings-tab__section"
-        title={t("wine_prefix")}
-        description={t("wine_prefix_description")}
+        title={
+          isMacOs
+            ? t("crossover_bottle", {
+                defaultValue: "CrossOver bottle (Wine prefix)",
+              })
+            : t("wine_prefix")
+        }
+        description={
+          isMacOs
+            ? t("crossover_bottle_description", {
+                defaultValue: "The CrossOver bottle used to run this game",
+              })
+            : t("wine_prefix_description")
+        }
       >
         <HorizontalFocusGroup
           className="game-compatibility-settings-tab__wine-prefix-row"
@@ -287,65 +315,79 @@ export function GameCompatibilitySettingsTab({
         </HorizontalFocusGroup>
       </SettingsSection>
 
-      <SettingsSection
-        className="game-compatibility-settings-tab__section"
-        title={t("proton_version")}
-        description={t("proton_version_description")}
-      >
-        <div className="game-compatibility-settings-tab__proton-options">
-          {protonOptions.map((option) => (
-            <Radio
-              key={option.focusId}
-              id={option.focusId}
-              label={
-                <span className="game-compatibility-settings-tab__proton-option-label">
-                  <span className="game-compatibility-settings-tab__proton-option-title">
-                    {option.title}
-                  </span>
-                  <span className="game-compatibility-settings-tab__proton-option-description">
-                    {option.description}
-                  </span>
-                </span>
-              }
-              checked={selectedProtonPath === option.value}
-              block
-              onChange={() => {
-                handleChangeProtonVersion(option.value).catch(() => {});
-              }}
-            />
-          ))}
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        className="game-compatibility-settings-tab__section"
-        title={t("additional_options")}
-        description={t("additional_options_description", { ns: "big_picture" })}
-      >
-        <Checkbox
-          id={GAME_COMPATIBILITY_SETTINGS_GAMEMODE_ID}
-          label="GameMode"
-          secondaryText={gamemodeSecondaryText}
-          checked={autoRunGamemode || globalAutoRunGamemode}
-          disabled={gamemodeDisabled}
-          block
-          onChange={(checked) => {
-            handleToggleGamemode(checked).catch(() => {});
-          }}
+      {isMacOs && (
+        <GameCrossoverSettingsSection
+          game={game}
+          settings={crossoverSettings}
+          onChange={setCrossoverSettings}
         />
+      )}
 
-        <Checkbox
-          id={GAME_COMPATIBILITY_SETTINGS_MANGOHUD_ID}
-          label="MangoHud"
-          secondaryText={mangohudSecondaryText}
-          checked={autoRunMangohud || globalAutoRunMangohud}
-          disabled={mangohudDisabled}
-          block
-          onChange={(checked) => {
-            handleToggleMangohud(checked).catch(() => {});
-          }}
-        />
-      </SettingsSection>
+      {!isMacOs && (
+        <SettingsSection
+          className="game-compatibility-settings-tab__section"
+          title={t("proton_version")}
+          description={t("proton_version_description")}
+        >
+          <div className="game-compatibility-settings-tab__proton-options">
+            {protonOptions.map((option) => (
+              <Radio
+                key={option.focusId}
+                id={option.focusId}
+                label={
+                  <span className="game-compatibility-settings-tab__proton-option-label">
+                    <span className="game-compatibility-settings-tab__proton-option-title">
+                      {option.title}
+                    </span>
+                    <span className="game-compatibility-settings-tab__proton-option-description">
+                      {option.description}
+                    </span>
+                  </span>
+                }
+                checked={selectedProtonPath === option.value}
+                block
+                onChange={() => {
+                  handleChangeProtonVersion(option.value).catch(() => {});
+                }}
+              />
+            ))}
+          </div>
+        </SettingsSection>
+      )}
+
+      {!isMacOs && (
+        <SettingsSection
+          className="game-compatibility-settings-tab__section"
+          title={t("additional_options")}
+          description={t("additional_options_description", {
+            ns: "big_picture",
+          })}
+        >
+          <Checkbox
+            id={GAME_COMPATIBILITY_SETTINGS_GAMEMODE_ID}
+            label="GameMode"
+            secondaryText={gamemodeSecondaryText}
+            checked={autoRunGamemode || globalAutoRunGamemode}
+            disabled={gamemodeDisabled}
+            block
+            onChange={(checked) => {
+              handleToggleGamemode(checked).catch(() => {});
+            }}
+          />
+
+          <Checkbox
+            id={GAME_COMPATIBILITY_SETTINGS_MANGOHUD_ID}
+            label="MangoHud"
+            secondaryText={mangohudSecondaryText}
+            checked={autoRunMangohud || globalAutoRunMangohud}
+            disabled={mangohudDisabled}
+            block
+            onChange={(checked) => {
+              handleToggleMangohud(checked).catch(() => {});
+            }}
+          />
+        </SettingsSection>
+      )}
 
       <FileExplorerModal
         visible={winePickerOpen}

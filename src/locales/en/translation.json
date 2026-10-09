@@ -786,6 +786,8 @@
     "loading_save_preview": "Searching for save games…",
     "wine_prefix": "Wine Prefix",
     "wine_prefix_description": "The Wine prefix used to run this game",
+    "crossover_bottle": "CrossOver bottle (Wine prefix)",
+    "crossover_bottle_description": "The CrossOver bottle used to run this game",
     "crossover_settings": "CrossOver settings",
     "crossover_settings_description": "Applied to this game's CrossOver bottle when you launch it, then restored when you exit. Choose 'Leave unchanged' to keep whatever CrossOver is set to.",
     "crossover_setting_renderer": "Graphics backend (renderer)",

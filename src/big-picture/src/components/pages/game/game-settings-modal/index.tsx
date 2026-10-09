@@ -86,8 +86,16 @@ export function GameSettingsModal({
     [game]
   );
   const isDev = import.meta.env.DEV;
+  // Mirrors the desktop app: on macOS the compatibility tab is only relevant for
+  // Windows executables, which run through CrossOver.
+  const isMacWindowsGame =
+    globalThis.window.electron.platform === "darwin" &&
+    game.executablePath?.toLowerCase().endsWith(".exe") === true;
+  const compatibilityVariant = isMacWindowsGame ? "macos" : "linux";
   const shouldShowCompatibilityTab =
-    globalThis.window.electron.platform === "linux" || isDev;
+    globalThis.window.electron.platform === "linux" ||
+    isMacWindowsGame ||
+    isDev;
   const shouldShowDownloadsTab = game.shop !== "custom";
   const settingsLabel = t("settings", { ns: "header" });
 
@@ -129,8 +137,13 @@ export function GameSettingsModal({
     [game, onClose]
   );
   const compatibilityContent = useMemo(
-    () => <GameCompatibilitySettingsTab game={game} />,
-    [game]
+    () => (
+      <GameCompatibilitySettingsTab
+        game={game}
+        variant={compatibilityVariant}
+      />
+    ),
+    [game, compatibilityVariant]
   );
 
   const isSignedIn = userDetails !== null;
