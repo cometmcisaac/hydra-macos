@@ -185,6 +185,26 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
 
+          # Auto-generate brief changelog from commits since upstream/main.
+          CHANGELOG_FILE="release/changelog.md"
+          {
+            echo "Changes since upstream/main:"
+            echo
+            git log upstream/main..HEAD --oneline --format="- %s (%h)" 2>/dev/null \
+              | head -n 30 || echo "- (upstream reference not fetched in CI)"
+          } > "$CHANGELOG_FILE"
+
+          NOTES_FILE="release/notes.md"
+          {
+            echo "Unsigned macOS build of the Hydra fork (arm64 + x64). After installing, clear the quarantine attribute:"
+            echo
+            echo "xattr -cr /Applications/Hydra.app"
+            echo
+            echo "---"
+            echo
+            cat "$CHANGELOG_FILE"
+          } > "$NOTES_FILE"
+
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --repo "$GITHUB_REPOSITORY" --clobber
           else
@@ -192,7 +212,5 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               $PRERELEASE_FLAG \
               --title "Hydra ${TAG#v} (macOS)" \
-              --notes "Unsigned macOS build of the Hydra fork (arm64 + x64). After installing, clear the quarantine attribute:
-
-          xattr -cr /Applications/Hydra.app"
+              --notes-file "$NOTES_FILE"
           fi
