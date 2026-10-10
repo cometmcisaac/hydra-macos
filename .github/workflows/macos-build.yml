@@ -3,7 +3,8 @@ name: macOS Build
 # Fork-specific workflow. It lives only on the macOS branch and never touches
 # the upstream Windows/Linux workflows, so it stays merge-safe with upstream.
 #
-# - Pushes to macos-native build unsigned arm64 + x64 artifacts.
+# - Only tags (`v*-macos`, `v*-macos-experimental*`) trigger builds + releases.
+# - Manual `workflow_dispatch` is always available.
 # - Tags ending in -macos build and then publish a GitHub release with the
 #   DMGs/zip attached.
 # - Tags containing -experimental (e.g. v4.1.6-macos-experimental, optionally
@@ -11,8 +12,6 @@ name: macOS Build
 #   downloadable, but never the electron-updater "latest".
 on:
   push:
-    branches:
-      - macos-native
     tags:
       - "v*-macos"
       - "v*-macos-experimental*"
