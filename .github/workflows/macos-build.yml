@@ -4,6 +4,9 @@ name: macOS Build
 # the upstream Windows/Linux workflows, so it stays merge-safe with upstream.
 #
 # - Only tags (`v*-macos`, `v*-macos-experimental*`) trigger builds + releases.
+# - There is NO `branches:` filter in this file, so pushing to `main` (e.g.
+#   after merging upstream/main) does NOT trigger this workflow — no quota
+#   is burned by upstream-sync pushes.
 # - Manual `workflow_dispatch` is always available.
 # - Tags ending in -macos build and then publish a GitHub release with the
 #   DMGs/zip attached.

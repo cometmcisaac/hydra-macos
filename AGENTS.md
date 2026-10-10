@@ -105,7 +105,7 @@ This is **notify-only** on macOS by necessity: Squirrel.Mac requires a code-sign
 
 ## macOS CI (`.github/workflows/macos-build.yml`)
 
-Triggers: pushes to `macos-native`, tags `v*-macos` and `v*-macos-experimental*`, and manual dispatch. Two build jobs (`macos-14`/arm64, `macos-15-intel`/x64) plus a `release` job that only runs for tag pushes. Concurrency group is per-ref, so a tag push doesn't cancel a branch run.
+- There is no `branches:` filter — only tag pushes (`v*-macos`, `v*-macos-experimental*`) and `workflow_dispatch`. Merging upstream commits into `main` (the pristine upstream mirror) will **not** fire this workflow, so upstream syncs don't burn quota. Concurrency group is per-ref, so a tag push doesn't cancel a branch run.
 
 Three upstream macOS-portability bugs were fixed here; keep them in mind if the workflow is refactored:
 
