@@ -76,6 +76,9 @@ import type {
   SteamSyncRunStatus,
   SteamConnectErrorCode,
   ExtractionFailure,
+  EpicConnectionState,
+  EpicOperationResult,
+  EpicStartAuthResult,
 } from "@types";
 import type { GameCrossoverSettings } from "@shared";
 import type { AuthPage } from "@shared";
@@ -1756,6 +1759,29 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.on("on-retroachievements-connected", listener);
     return () =>
       ipcRenderer.removeListener("on-retroachievements-connected", listener);
+  },
+  getEpicConnection: () =>
+    ipcRenderer.invoke("getEpicConnection") as Promise<EpicConnectionState>,
+  startEpicAuth: () =>
+    ipcRenderer.invoke("startEpicAuth") as Promise<EpicStartAuthResult>,
+  cancelEpicAuth: (operationId: string) =>
+    ipcRenderer.invoke(
+      "cancelEpicAuth",
+      operationId
+    ) as Promise<EpicOperationResult>,
+  disconnectEpic: (connectionId: string) =>
+    ipcRenderer.invoke(
+      "disconnectEpic",
+      connectionId
+    ) as Promise<EpicOperationResult>,
+  onEpicConnectionChanged: (cb: (state: EpicConnectionState) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      state: EpicConnectionState
+    ) => cb(state);
+    ipcRenderer.on("on-epic-connection-changed", listener);
+    return () =>
+      ipcRenderer.removeListener("on-epic-connection-changed", listener);
   },
   startSteamOAuth: (lng: string) => ipcRenderer.invoke("startSteamOAuth", lng),
   disconnectSteam: (deleteImportedData: boolean) =>
