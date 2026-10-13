@@ -128,6 +128,10 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
+        with:
+          # Full history + tags so the changelog can diff against the previous
+          # macOS release tag instead of a ref that only exists locally.
+          fetch-depth: 0
 
       - name: Download arm64 artifacts
         uses: actions/download-artifact@v4
@@ -187,13 +191,26 @@ jobs:
             PRERELEASE_FLAG="--prerelease"
           fi
 
-          # Auto-generate brief changelog from commits since upstream/main.
+          # Changelog = everything since the previous macOS release tag. Using the tag
+          # (rather than upstream/main) is deliberate: once upstream/main is
+          # merged in, "upstream/main..HEAD" is only the fork's own commits and
+          # would hide everything upstream brought in since the last release.
+          PREV_TAG="$(git tag --list 'v*-macos' --sort=-v:refname \
+            | grep -v -- "-macos-experimental" \
+            | grep -vx -- "$TAG" \
+            | head -n 1 || true)"
           CHANGELOG_FILE="release/changelog.md"
           {
-            echo "Changes since upstream/main:"
-            echo
-            git log upstream/main..HEAD --oneline --format="- %s (%h)" 2>/dev/null \
-              | head -n 30 || echo "- (upstream reference not fetched in CI)"
+            if [ -n "$PREV_TAG" ]; then
+              echo "Changes since ${PREV_TAG}:"
+              echo
+              git log --oneline --no-decorate --no-merges "${PREV_TAG}..HEAD" \
+                | head -n 60
+            else
+              echo "Full commit list:"
+              echo
+              git log --oneline --no-decorate --no-merges | head -n 60
+            fi
           } > "$CHANGELOG_FILE"
 
           NOTES_FILE="release/notes.md"
