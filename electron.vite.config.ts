@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
   return {
     main: {
       build: {
-        sourcemap: false,
+        sourcemap: true,
       },
       resolve: {
         alias: {
@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => {
     },
     renderer: {
       build: {
-        sourcemap: false,
+        sourcemap: true,
       },
       esbuild: {
         keepNames: true,
