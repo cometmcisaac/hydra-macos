@@ -46,6 +46,34 @@ Notes:
 - `yarn build` runs `typecheck` first, so a green `yarn build` implies a green typecheck.
 - When running `tsc` manually, always pass `--composite false` (as the scripts do). Without it you get a spurious pre-existing TS7056 in `src/locales/index.ts`.
 - Use the shell tool's `workdir` parameter to change directory. **Do not** write `cd <path> && rm -rf …` — that form is blocked by a safety hook.
+- `npx electron-builder --mac --dir` alone is **not** a substitute for `yarn build:mac`: it skips `build:native`, so `ludusavi/ludusavi` and a valid `hydra-native/hydra-native.node` may be missing from the bundle. See the native-build note below.
+- The `Contents/MacOS/Hydra` stub is legitimately tiny (~33 KB). That is normal for Electron — the real code lives in `Contents/Frameworks/`. Do **not** treat a small stub binary as a broken build.
+
+### Known local blocker: `build:native` emits an unloadable Mach-O
+
+`yarn build:mac` and `yarn postinstall` both start with `build:native`, which currently **fails on this machine**:
+
+```
+Electron cannot load the native addon: dlopen(.../hydra-native.node, 0x0001):
+  mis-aligned LINKEDIT string pool, fileOffset=0x0084637C
+```
+
+What is established:
+
+- The failure is in the locally built `hydra-native/hydra-native.node` (a Rust `cdylib`). It reproduces under plain `node` too, so it is **not** an Electron/dyld-version mismatch — the binary's `__LINKEDIT` layout is genuinely malformed (`LC_SYMTAB.stroff` is 4-byte aligned where dyld requires 8).
+- It is **not** caused by this fork's macOS code. `native/hydra-native/` is byte-identical to the commit the working CI artifact was built from.
+- Ruled out: Apple `ld` vs `lld` (both produce it), `-C strip=debuginfo`, `-C debuginfo=0`, and forcing a fresh relink. All reproduce it identically.
+- The CI-built `.node` from a release app is structurally valid and loads fine when its sibling `libhydra_torrent_bridge.dylib` is alongside it.
+- Conclusion: a local toolchain incompatibility (macOS 27.2 / Xcode 27 AppleClang 21 / Homebrew rustc 1.98.1) that upstream's CI runners do not hit.
+
+Workaround that produces a working app — reuse the CI-built native binaries, whose source is identical to `HEAD`:
+
+```bash
+cp <extracted-release-app>/Contents/Resources/hydra-native/{hydra-native.node,libhydra_torrent_bridge.dylib} hydra-native/
+yarn build && npx electron-builder --mac --dir --publish never
+```
+
+If `yarn build:mac` is needed, also ensure `ludusavi/ludusavi` exists — it is gitignored and only restored by `node scripts/postinstall.cjs` (which itself runs the broken `build:native` first, so run it standalone or fetch the binary directly). Without it the app throws `ENOENT … Contents/Resources/ludusavi/ludusavi` on startup.
 
 ## Safety constraints in this environment
 
