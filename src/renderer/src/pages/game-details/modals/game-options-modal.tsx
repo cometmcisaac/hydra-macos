@@ -13,6 +13,9 @@ import {
   GAMEMODE_SITE_URL,
   getCloudSaveAccessAction,
   getGameExecutableFilters,
+  getGameCatalogueIdentity,
+  applyLibraryGroupAction,
+  isLibraryGameDownloading,
   MANGOHUD_SITE_URL,
   normalizeGameCrossoverSettings,
   type GameCrossoverSettings,
@@ -34,6 +37,7 @@ import {
   useGameCollections,
   useIsNonSteamExecutable,
   useLibrary,
+  useLibraryGamePresentation,
   useToast,
   useUserDetails,
 } from "@renderer/hooks";
@@ -98,6 +102,9 @@ export function GameOptionsModal({
   const { showSuccessToast, showErrorToast } = useToast();
   const { updateLibrary } = useLibrary();
   const { loadCollections } = useGameCollections();
+  const presentation = useLibraryGamePresentation(game, game);
+  const downloadGame = presentation?.downloadGame ?? game;
+  const catalogueGame = getGameCatalogueIdentity(presentation ?? game);
 
   const {
     updateGame,
@@ -237,12 +244,8 @@ export function GameOptionsModal({
     [game.objectId, game.shop]
   );
 
-  const {
-    removeGameInstaller,
-    removeGameFromLibrary,
-    isGameDeleting,
-    cancelDownload,
-  } = useDownload();
+  const { removeGameInstaller, removeGameFromLibrary, isGameDeleting } =
+    useDownload();
   const { userDetails, hasActiveSubscription } = useUserDetails();
   const { artifacts } = useContext(cloudSyncContext);
   const { showHydraCloudModal } = useSubscription();
@@ -426,15 +429,31 @@ export function GameOptionsModal({
   ).current;
 
   const handleRemoveGameFromLibrary = async () => {
-    if (isGameDownloading) await cancelDownload(game.shop, game.objectId);
-    await removeGameFromLibrary(game.shop, game.objectId);
-    await Promise.all([
-      refreshGameDetails(),
-      updateLibrary(),
-      loadCollections(),
-    ]);
-    onClose();
-    if (game.shop === "custom" && onNavigateHome) onNavigateHome();
+    try {
+      await applyLibraryGroupAction(
+        presentation?.members ?? [game],
+        async (member) => {
+          if (member.download?.status === "active") {
+            await globalThis.window.electron.cancelGameDownload(
+              member.shop,
+              member.objectId
+            );
+          }
+          await removeGameFromLibrary(member.shop, member.objectId);
+        }
+      );
+      onClose();
+      if (game.shop === "custom" && onNavigateHome) onNavigateHome();
+    } catch (error) {
+      logger.error("Failed to remove catalogue game from library", error);
+      showErrorToast(t("failed_remove_from_library"));
+    } finally {
+      await Promise.allSettled([
+        refreshGameDetails(),
+        updateLibrary(),
+        loadCollections(),
+      ]);
+    }
   };
 
   const handleCancelTransfer = () => {
@@ -608,7 +627,10 @@ export function GameOptionsModal({
   };
 
   const handleOpenDownloadFolder = () =>
-    globalThis.window.electron.openGameInstallerPath(game.shop, game.objectId);
+    globalThis.window.electron.openGameInstallerPath(
+      downloadGame.shop,
+      downloadGame.objectId
+    );
   const handleDeleteGame = async () => {
     await removeGameInstaller(game.shop, game.objectId);
     updateGame();
@@ -844,8 +866,8 @@ export function GameOptionsModal({
 
     try {
       const assets = await globalThis.window.electron.getGameAssets(
-        game.objectId,
-        game.shop,
+        catalogueGame.objectId,
+        catalogueGame.shop,
         { forceFresh: true }
       );
 
@@ -864,7 +886,16 @@ export function GameOptionsModal({
     } finally {
       setUpdatingGameTitle(false);
     }
-  }, [game, updatingGameTitle, showErrorToast, t, updateGame, updateLibrary]);
+  }, [
+    game,
+    catalogueGame.objectId,
+    catalogueGame.shop,
+    updatingGameTitle,
+    showErrorToast,
+    t,
+    updateGame,
+    updateLibrary,
+  ]);
 
   const handleChangeProtonVersion = (value: string) => {
     setSelectedProtonPath(value);
@@ -1240,12 +1271,14 @@ export function GameOptionsModal({
         onClose={() => setShowChangePlaytimeModal(false)}
         changePlaytime={handleChangePlaytime}
         game={game}
+        playtimePreview={presentation}
       />
       <ResetPlaytimeModal
         visible={showResetPlaytimeModal}
         onClose={() => setShowResetPlaytimeModal(false)}
         resetPlaytime={handleResetPlaytime}
         game={game}
+        playtimePreview={presentation}
       />
       <CreateSteamShortcutModal
         visible={showSteamShortcutModal}
@@ -1256,7 +1289,7 @@ export function GameOptionsModal({
 
       <Modal
         visible={visible}
-        title={game.title}
+        title={presentation?.title ?? game.title}
         onClose={onClose}
         onCloseStart={cancelLegacySaveExport}
         large={true}
@@ -1297,6 +1330,7 @@ export function GameOptionsModal({
             {selectedCategory === "assets" && (
               <GameAssetsSettings
                 game={game}
+                catalogueGame={catalogueGame}
                 shopDetails={shopDetails}
                 onGameUpdated={updateGame}
               />
@@ -1355,9 +1389,9 @@ export function GameOptionsModal({
               )}
             {selectedCategory === "downloads" && showDownloadSettings && (
               <DownloadsSettingsSection
-                game={game}
-                deleting={deleting}
-                isGameDownloading={isGameDownloading}
+                game={downloadGame}
+                deleting={isGameDeleting(downloadGame.id)}
+                isGameDownloading={isLibraryGameDownloading(downloadGame)}
                 repacksLength={repacks.length}
                 onOpenRepacks={() => setShowRepacksModal(true)}
                 onOpenDownloadFolder={handleOpenDownloadFolder}
