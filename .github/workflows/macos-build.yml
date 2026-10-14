@@ -199,7 +199,10 @@ jobs:
             | grep -v -- "-macos-experimental" \
             | grep -vx -- "$TAG" \
             | head -n 1 || true)"
-          CHANGELOG_FILE="release/changelog.md"
+          # Intermediate files live outside release/ so the "release/*" glob below
+          # uploads only the actual downloadable artifacts.
+          NOTES_DIR="$(mktemp -d)"
+          NOTES_FILE="${NOTES_DIR}/notes.md"
           {
             if [ -n "$PREV_TAG" ]; then
               echo "Changes since ${PREV_TAG}:"
@@ -211,9 +214,8 @@ jobs:
               echo
               git log --oneline --no-decorate --no-merges | head -n 60
             fi
-          } > "$CHANGELOG_FILE"
+          } > "${NOTES_DIR}/changelog.md"
 
-          NOTES_FILE="release/notes.md"
           {
             echo "Unsigned macOS build of the Hydra fork (arm64 + x64). After installing, clear the quarantine attribute:"
             echo
@@ -221,7 +223,7 @@ jobs:
             echo
             echo "---"
             echo
-            cat "$CHANGELOG_FILE"
+            cat "${NOTES_DIR}/changelog.md"
           } > "$NOTES_FILE"
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
