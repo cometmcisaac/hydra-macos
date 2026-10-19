@@ -1,4 +1,5 @@
 import { getContextualEpicGame } from "@main/services/epic/import-visibility";
+import { epicLibraryArtworkQueue } from "@main/services/epic-library-artwork";
 import { updateGameRecord } from "@main/services/game-record-updater";
 import { logger } from "@main/services/logger";
 import path from "node:path";
@@ -85,6 +86,26 @@ const getLibrary = async (
               game.objectId,
               game.unlockedAchievementCount
             );
+            let achievementCount = resolveAchievementCount(
+              game.shop,
+              game.objectId,
+              game.achievementCount
+            );
+            // An Epic copy without its own definitions presents its linked Steam catalogue.
+            if (
+              game.shop === "epic" &&
+              achievementCount === 0 &&
+              game.catalogueGame?.shop === "steam"
+            ) {
+              const steamGame = await gamesSublevel
+                .get(levelKeys.game("steam", game.catalogueGame.objectId))
+                .catch(() => undefined);
+              achievementCount = resolveAchievementCount(
+                "steam",
+                game.catalogueGame.objectId,
+                steamGame?.achievementCount
+              );
+            }
 
             // Verify installer still exists, clear if deleted externally
             let installerSizeInBytes = game.installerSizeInBytes;
@@ -149,11 +170,7 @@ const getLibrary = async (
               shop: game.shop,
               objectId: game.objectId,
               unlockedAchievementCount,
-              achievementCount: resolveAchievementCount(
-                game.shop,
-                game.objectId,
-                game.achievementCount
-              ),
+              achievementCount,
               ...(game.shop === "epic" &&
                 game.catalogueGame?.shop !== "steam" && {
                   iconUrl: composedAssets?.iconUrl ?? null,
@@ -167,9 +184,13 @@ const getLibrary = async (
               customCoverImageUrl: game.customCoverImageUrl,
             };
           })
-      ).then((games) =>
-        games.filter((game): game is NonNullable<typeof game> => game !== null)
-      );
+      ).then((games) => {
+        const library = games.filter(
+          (game): game is NonNullable<typeof game> => game !== null
+        );
+        if (HydraApi.isLoggedIn()) epicLibraryArtworkQueue.schedule(library);
+        return library;
+      });
     });
 };
 

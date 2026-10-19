@@ -6,7 +6,7 @@ import { logger } from "@main/services/logger";
 import { getSteamStoreUserContext } from "@main/services/steam-login-users";
 import { resolveMacWindowsRuntime } from "@main/services/mac-windows/mac-windows-runtime";
 import { resolveSteamProtocolLaunch } from "@main/services/steam-integration/steam-protocol-launch";
-import type { CloudSavePathContext, GameShop } from "@types";
+import type { CloudSavePathContext, Game, GameShop } from "@types";
 import { getCloudSaveEmulatorProvider } from "@shared";
 import { getEmulatorConfig } from "../emulators/emulators-repository";
 import { getRetroArchConfig } from "../retroarch/retroarch-repository";
@@ -25,9 +25,10 @@ export interface CloudSaveGameContextOverrides {
   prefixGenerationOverride?: CloudSavePrefixGenerationOverride;
 }
 
-const getRequestedWinePrefixPath = (
+const getRequestedWinePrefixPath = async (
   usesWindowsCompatibility: boolean,
-  gameWinePrefixPath: string | null | undefined,
+  shop: GameShop,
+  game: Game | undefined,
   objectId: string,
   overrides?: CloudSaveGameContextOverrides,
   macPrefixPath?: string | null
@@ -37,9 +38,21 @@ const getRequestedWinePrefixPath = (
     return overrides.winePrefixPath ?? null;
   }
   // On macOS the prefix depends on how the game runs: a CrossOver bottle, or
-  // Steam Play's compatdata folder (see resolveMacWindowsRuntime).
+  // Steam Play's compatdata folder (see resolveMacWindowsRuntime). Checked
+  // first so the macOS runtime always wins on darwin.
   if (process.platform === "darwin") return macPrefixPath ?? null;
-  return Wine.getEffectivePrefixPath(gameWinePrefixPath, objectId);
+  // Managed Epic games run in an owner/artifact prefix, not the per-game default.
+  if (shop === "epic" && game?.epicInstallation) {
+    const { resolveEpicLinuxPrefixPath } = await import(
+      "../epic/linux-runtime"
+    );
+    return resolveEpicLinuxPrefixPath(
+      game,
+      game.epicInstallation.owner,
+      game.epicInstallation.artifactId
+    );
+  }
+  return Wine.getEffectivePrefixPath(game?.winePrefixPath, objectId);
 };
 
 export const getCloudSaveGameContext = async (
@@ -50,7 +63,10 @@ export const getCloudSaveGameContext = async (
   const game = await gamesSublevel
     .get(levelKeys.game(shop, objectId))
     .catch(() => undefined);
-  const steamPath = await getSteamLocation().catch(() => undefined);
+  const steamPath =
+    shop === "epic"
+      ? undefined
+      : await getSteamLocation().catch(() => undefined);
   const storeUserContext =
     shop === "steam" && steamPath
       ? await getSteamStoreUserContext(steamPath)
@@ -88,9 +104,10 @@ export const getCloudSaveGameContext = async (
               : null,
         })
       : null;
-  const requestedWinePrefixPath = getRequestedWinePrefixPath(
+  const requestedWinePrefixPath = await getRequestedWinePrefixPath(
     usesWindowsCompatibility,
-    game?.winePrefixPath,
+    shop,
+    game,
     objectId,
     overrides,
     macWindowsRuntime?.prefixPath

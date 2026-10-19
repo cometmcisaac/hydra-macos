@@ -255,11 +255,19 @@ export const fetchGameArtwork = async (
   kind: ArtworkKind,
   page = 0,
   parameters: Record<string, string> = {},
-  timeout?: number
+  timeout?: number,
+  useDefaultDimensions = true
 ): Promise<ArtworkPage> => {
+  const query: Record<string, string | number> = {
+    ...KIND_PARAMS[kind],
+    limit: ARTWORK_PAGE_SIZE,
+    page,
+    ...parameters,
+  };
+  if (!useDefaultDimensions) delete query.dimensions;
   const response = await HydraApi.getResponse<ArtworkResponse>(
     `/games/${shop}/${objectId}/artwork/${kind}`,
-    { ...KIND_PARAMS[kind], limit: ARTWORK_PAGE_SIZE, page, ...parameters },
+    query,
     {
       ...(timeout !== undefined && {
         timeout,
@@ -336,22 +344,57 @@ export async function resolveEpicDefaultArtwork(
     ];
     const missing = defaults.filter(({ type }) => !isFresh(type));
     pending = Promise.allSettled(
-      missing.map(({ kind, parameters }) =>
-        fetchGameArtwork(
+      missing.map(async ({ type, kind, parameters }) => {
+        const startedAt = Date.now();
+        const query = {
+          types: "static",
+          limit: String(EPIC_DEFAULT_ARTWORK_LIMIT),
+          humor: "false",
+          epilepsy: "false",
+          ...parameters,
+        };
+        const page = await fetchGameArtwork(
           "epic",
           assets.objectId,
           kind,
           0,
-          {
-            types: "static",
-            limit: String(EPIC_DEFAULT_ARTWORK_LIMIT),
-            humor: "false",
-            epilepsy: "false",
-            ...parameters,
-          },
+          query,
           EPIC_DEFAULT_ARTWORK_TIMEOUT_MS
+        );
+        if (
+          kind !== "grids" ||
+          page.items.some(
+            (item) =>
+              item.style === "no_logo" &&
+              !item.nsfw &&
+              !item.humor &&
+              /^https:\/\//i.test(item.url) &&
+              (type === "portrait"
+                ? item.height > item.width
+                : item.width > item.height)
+          )
         )
-      )
+          return page;
+        // A game may only have no-logo grids outside the preferred dimensions.
+        // Keep the style filter and let the resolver validate the aspect ratio.
+        const fallback: Record<string, string> = {
+          ...query,
+          limit: String(ARTWORK_PAGE_SIZE),
+        };
+        delete fallback.dimensions;
+        const remaining =
+          EPIC_DEFAULT_ARTWORK_TIMEOUT_MS - (Date.now() - startedAt);
+        if (remaining <= 0) throw new Error("Epic default artwork timed out");
+        return fetchGameArtwork(
+          "epic",
+          assets.objectId,
+          kind,
+          0,
+          fallback,
+          remaining,
+          false
+        );
+      })
     )
       .then((responses) => {
         const pages: Partial<Record<EpicArtworkType, ArtworkPage>> = {};

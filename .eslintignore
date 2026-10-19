@@ -6,3 +6,5 @@ migration.stub
 hydra-python-rpc/
 hydra-native/
 native/torrent-bridge/build/
+/legendary/
+native/**/target/

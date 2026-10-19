@@ -14,6 +14,10 @@ import { db } from "@main/level";
 import { levelKeys } from "@main/level/sublevels";
 import type { Auth, User } from "@types";
 import { SSEClient } from "./sse";
+import { FriendsSnapshotCache } from "./friends-snapshot";
+import { ChatUnreadStore } from "./chat/chat-unread-store";
+import { clearChatSenderProfiles } from "./chat/chat-sender-profiles";
+import { closeChatNotifications } from "./notifications";
 import { trimTrailingSlashes } from "../../shared/trim-trailing-slashes.js";
 import {
   sanitizeNetworkLogPayload,
@@ -154,7 +158,8 @@ export class HydraApi {
   }
 
   public static updateUserSubscription(
-    subscription?: { expiresAt: Date | string | null } | null
+    subscription?: { expiresAt: Date | string | null } | null,
+    options?: { freshUserId?: string; triggerSouvenirSync?: boolean }
   ) {
     this.userAuth.subscription = subscription
       ? { expiresAt: subscription.expiresAt }
@@ -170,10 +175,31 @@ export class HydraApi {
       );
     }
 
-    if (this.isLoggedIn() && this.hasActiveSubscription()) {
-      void import("./achievements/grouped-souvenir-worker").then(
-        ({ groupedSouvenirWorker }) => groupedSouvenirWorker.trigger()
-      );
+    if (
+      options?.triggerSouvenirSync !== false &&
+      this.isLoggedIn() &&
+      this.hasActiveSubscription()
+    ) {
+      void import("./achievements/grouped-souvenir-worker")
+        .then(async ({ groupedSouvenirWorker }) => {
+          if (
+            options?.freshUserId &&
+            this.getAuthContext()?.userId === options.freshUserId
+          ) {
+            await groupedSouvenirWorker.resumeAfterSubscriptionRefresh(
+              options.freshUserId,
+              subscription?.expiresAt ?? null
+            );
+            return;
+          }
+          await groupedSouvenirWorker.trigger();
+        })
+        .catch((error) =>
+          logger.error(
+            "Failed to resume grouped souvenir synchronization",
+            error
+          )
+        );
     }
   }
 
@@ -450,6 +476,13 @@ export class HydraApi {
   }
 
   private static sendSignOutEvent() {
+    FriendsSnapshotCache.clear();
+    ChatUnreadStore.clear();
+    clearChatSenderProfiles();
+    closeChatNotifications();
+    // Covers the 401 path too, which never goes through the sign-out event.
+    WindowManager.closeFriendsWindow();
+    WindowManager.closeChatWindow();
     WindowManager.sendToAppWindows("on-signout");
   }
 

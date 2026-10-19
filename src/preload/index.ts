@@ -19,6 +19,7 @@ import type {
   FriendRequestSync,
   FriendPresenceSync,
   NotificationSync,
+  UserFriend,
   ShortcutLocation,
   CreateSteamShortcutOptions,
   AchievementCustomNotificationPosition,
@@ -78,14 +79,32 @@ import type {
   SteamSyncRunStatus,
   SteamConnectErrorCode,
   ExtractionFailure,
+  FriendsSnapshot,
+  ChatAttachmentUploadProgress,
+  ChatAttachmentUploadRequest,
+  ChatMessageRejectedSync,
+  ChatMessageSync,
+  ChatMessageVisibilitySync,
+  ChatReactionSync,
+  ChatTypingSync,
+  ChatUnreadState,
+  ChatWindowState,
+  PendingChatFriend,
   EpicConnectionState,
   EpicSyncState,
   EpicSyncFinished,
   EpicOperationResult,
   EpicStartAuthResult,
+  EpicGameInstallOptions,
+  StartEpicGameDownloadPayload,
+  EpicManagedOperationResult,
+  EpicCloudSaveState,
+  EpicCloudSaveSettings,
+  ResolveEpicCloudSaveConflictPayload,
+  EpicLaunchOptions,
+  EpicLinuxCompatibility,
 } from "@types";
-import type { GameCrossoverSettings } from "@shared";
-import type { AuthPage } from "@shared";
+import type { AuthPage, Downloader, GameCrossoverSettings } from "@shared";
 import type { AxiosProgressEvent } from "axios";
 
 const fileExplorerApi = {
@@ -397,8 +416,10 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("addGameToQueue", payload),
   cancelGameDownload: (shop: GameShop, objectId: string) =>
     ipcRenderer.invoke("cancelGameDownload", shop, objectId),
-  pauseGameDownload: (shop: GameShop, objectId: string) =>
-    ipcRenderer.invoke("pauseGameDownload", shop, objectId),
+  pauseGameDownload: (shop: GameShop, objectId: string, confirmed?: boolean) =>
+    ipcRenderer.invoke("pauseGameDownload", shop, objectId, confirmed),
+  getDownloadPauseWarning: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("getDownloadPauseWarning", shop, objectId),
   resumeGameDownload: (
     shop: GameShop,
     objectId: string,
@@ -440,14 +461,16 @@ contextBridge.exposeInMainWorld("electron", {
     shop: GameShop,
     objectId: string,
     targetArea: "hero" | "queue" | "paused",
-    targetIndex?: number
+    targetIndex?: number,
+    confirmed?: boolean
   ) =>
     ipcRenderer.invoke(
       "moveDownloadPlacement",
       shop,
       objectId,
       targetArea,
-      targetIndex
+      targetIndex,
+      confirmed
     ),
   getDownloadLayoutState: () =>
     ipcRenderer.invoke(
@@ -476,6 +499,10 @@ contextBridge.exposeInMainWorld("electron", {
   },
   getTorrentFiles: (magnet: string) =>
     ipcRenderer.invoke("getTorrentFiles", magnet) as Promise<
+      { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
+    >,
+  getDebridFiles: (magnet: string, provider: Downloader) =>
+    ipcRenderer.invoke("getDebridFiles", magnet, provider) as Promise<
       { ok: true; data: TorrentFilesResponse } | { ok: false; error: string }
     >,
 
@@ -1178,14 +1205,16 @@ contextBridge.exposeInMainWorld("electron", {
     shop: GameShop,
     objectId: string,
     executablePath: string,
-    launchOptions?: string | null
+    launchOptions?: string | null,
+    epicLaunchOptions?: EpicLaunchOptions
   ) =>
     ipcRenderer.invoke(
       "openGame",
       shop,
       objectId,
       executablePath,
-      launchOptions
+      launchOptions,
+      epicLaunchOptions
     ),
   openClassicsGame: (
     shop: GameShop,
@@ -1771,6 +1800,64 @@ contextBridge.exposeInMainWorld("electron", {
   },
   getEpicConnection: () =>
     ipcRenderer.invoke("getEpicConnection") as Promise<EpicConnectionState>,
+  getGameLinuxCompatibility: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke(
+      "getGameLinuxCompatibility",
+      shop,
+      objectId
+    ) as Promise<EpicLinuxCompatibility | null>,
+  getEpicGameInstallOptions: (epicObjectId: string, requestId?: string) =>
+    ipcRenderer.invoke(
+      "getEpicGameInstallOptions",
+      epicObjectId,
+      requestId
+    ) as Promise<EpicGameInstallOptions>,
+  cancelEpicGameInstallOptions: (requestId: string) =>
+    ipcRenderer.invoke(
+      "cancelEpicGameInstallOptions",
+      requestId
+    ) as Promise<void>,
+  startEpicGameDownload: (payload: StartEpicGameDownloadPayload) =>
+    ipcRenderer.invoke(
+      "startEpicGameDownload",
+      payload
+    ) as Promise<EpicManagedOperationResult>,
+  getEpicCloudSaveState: (epicObjectId: string) =>
+    ipcRenderer.invoke(
+      "getEpicCloudSaveState",
+      epicObjectId
+    ) as Promise<EpicCloudSaveState>,
+  setEpicCloudSaveSettings: (
+    epicObjectId: string,
+    settings: EpicCloudSaveSettings
+  ) =>
+    ipcRenderer.invoke(
+      "setEpicCloudSaveSettings",
+      epicObjectId,
+      settings
+    ) as Promise<EpicManagedOperationResult>,
+  syncEpicCloudSaves: (epicObjectId: string) =>
+    ipcRenderer.invoke(
+      "syncEpicCloudSaves",
+      epicObjectId
+    ) as Promise<EpicCloudSaveState>,
+  resolveEpicCloudSaveConflict: (
+    payload: ResolveEpicCloudSaveConflictPayload
+  ) =>
+    ipcRenderer.invoke(
+      "resolveEpicCloudSaveConflict",
+      payload
+    ) as Promise<EpicCloudSaveState>,
+  onEpicCloudSaveStateChanged: (cb: (state: EpicCloudSaveState) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      state: EpicCloudSaveState
+    ) => cb(state);
+    ipcRenderer.on("on-epic-cloud-save-state-changed", listener);
+    return () => {
+      ipcRenderer.removeListener("on-epic-cloud-save-state-changed", listener);
+    };
+  },
   startEpicAuth: () =>
     ipcRenderer.invoke("startEpicAuth") as Promise<EpicStartAuthResult>,
   cancelEpicAuth: (operationId: string) =>
@@ -2051,10 +2138,117 @@ contextBridge.exposeInMainWorld("electron", {
   openFriendsWindow: () => ipcRenderer.invoke("openFriendsWindow"),
   minimizeFriendsWindow: () => ipcRenderer.invoke("minimizeFriendsWindow"),
   closeFriendsWindow: () => ipcRenderer.invoke("closeFriendsWindow"),
+  friendsWindowReady: () => ipcRenderer.invoke("friendsWindowReady"),
+  prefetchFriends: () => ipcRenderer.invoke("prefetchFriends"),
+  getFriendsSnapshot: () =>
+    ipcRenderer.invoke("getFriendsSnapshot") as Promise<FriendsSnapshot | null>,
   openFriendProfileInMainWindow: (userId: string) =>
     ipcRenderer.invoke("openFriendProfileInMainWindow", userId),
   openAddFriendModalInMainWindow: () =>
     ipcRenderer.invoke("openAddFriendModalInMainWindow"),
+
+  /* Chat */
+  openChatWindow: (friend: UserFriend) =>
+    ipcRenderer.invoke("openChatWindow", friend),
+  minimizeChatWindow: () => ipcRenderer.invoke("minimizeChatWindow"),
+  closeChatWindow: () => ipcRenderer.invoke("closeChatWindow"),
+  openGameInMainWindow: (gamePath: string) =>
+    ipcRenderer.invoke("openGameInMainWindow", gamePath),
+  consumePendingChatFriends: () =>
+    ipcRenderer.invoke("consumePendingChatFriends") as Promise<
+      PendingChatFriend[]
+    >,
+  onChatFriendsPending: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on("on-chat-friends-pending", listener);
+    return () =>
+      ipcRenderer.removeListener("on-chat-friends-pending", listener);
+  },
+  setChatWindowState: (state: ChatWindowState) =>
+    ipcRenderer.invoke("setChatWindowState", state),
+  getChatUnreadState: () =>
+    ipcRenderer.invoke("getChatUnreadState") as Promise<ChatUnreadState>,
+  markChatRead: (friendId: string, seq: number) =>
+    ipcRenderer.invoke("markChatRead", friendId, seq),
+  onChatMessage: (cb: (sync: ChatMessageSync) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sync: ChatMessageSync
+    ) => cb(sync);
+    ipcRenderer.on("on-chat-message", listener);
+    return () => ipcRenderer.removeListener("on-chat-message", listener);
+  },
+  onChatTyping: (cb: (sync: ChatTypingSync) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sync: ChatTypingSync
+    ) => cb(sync);
+    ipcRenderer.on("on-chat-typing", listener);
+    return () => ipcRenderer.removeListener("on-chat-typing", listener);
+  },
+  onChatReaction: (cb: (sync: ChatReactionSync) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sync: ChatReactionSync
+    ) => cb(sync);
+    ipcRenderer.on("on-chat-reaction", listener);
+    return () => ipcRenderer.removeListener("on-chat-reaction", listener);
+  },
+  onChatMessageVisibility: (cb: (sync: ChatMessageVisibilitySync) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sync: ChatMessageVisibilitySync
+    ) => cb(sync);
+    ipcRenderer.on("on-chat-message-visibility", listener);
+    return () =>
+      ipcRenderer.removeListener("on-chat-message-visibility", listener);
+  },
+  onChatMessageRejected: (cb: (sync: ChatMessageRejectedSync) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sync: ChatMessageRejectedSync
+    ) => cb(sync);
+    ipcRenderer.on("on-chat-message-rejected", listener);
+    return () =>
+      ipcRenderer.removeListener("on-chat-message-rejected", listener);
+  },
+  uploadChatAttachment: (request: ChatAttachmentUploadRequest) =>
+    ipcRenderer.invoke("uploadChatAttachment", request) as Promise<{
+      id: string;
+    }>,
+  onChatAttachmentUploadProgress: (
+    cb: (progress: ChatAttachmentUploadProgress) => void
+  ) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      progress: ChatAttachmentUploadProgress
+    ) => cb(progress);
+    ipcRenderer.on("on-chat-attachment-upload-progress", listener);
+    return () =>
+      ipcRenderer.removeListener(
+        "on-chat-attachment-upload-progress",
+        listener
+      );
+  },
+  onChatMessageSound: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on("on-chat-message-sound", listener);
+    return () => ipcRenderer.removeListener("on-chat-message-sound", listener);
+  },
+  onChatUnreadUpdated: (cb: (state: ChatUnreadState) => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      state: ChatUnreadState
+    ) => cb(state);
+    ipcRenderer.on("on-chat-unread-updated", listener);
+    return () => ipcRenderer.removeListener("on-chat-unread-updated", listener);
+  },
+  onChatResync: (cb: () => void) => {
+    const listener = () => cb();
+    ipcRenderer.on("on-chat-resync", listener);
+    return () => ipcRenderer.removeListener("on-chat-resync", listener);
+  },
+
   onOpenAddFriendModal: (cb: () => void) => {
     const listener = () => cb();
     ipcRenderer.on("on-open-add-friend-modal", listener);

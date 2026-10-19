@@ -66,19 +66,37 @@ import {
 import { updateGameRecord } from "./game-record-updater";
 import { GameExecutables } from "./game-executables";
 import { restoreCrossoverSettingsForGame } from "./mac-windows/crossover-settings";
+import {
+  onManagedEpicClosed,
+  onManagedEpicDetected,
+  getManagedEpicProcessMatch,
+  hasManagedEpicSession,
+  interruptManagedEpicPlaytime,
+} from "./epic/launch";
+import { runWithHydraSaveGuard } from "./epic/cloud-saves";
 
 export { gamesPlaytime };
 export { isGameRunning } from "./game-running-state";
 
+// Persisted ownership survives a Hydra restart. Legacy sync must not read a
+// managed game's files while its captured session/close proof is unavailable.
+const isManagedEpicGame = (game: Game) =>
+  game.shop === "epic" &&
+  (!!game.epicInstallation ||
+    hasManagedEpicSession(levelKeys.game(game.shop, game.objectId)));
+
 const runAutomaticCloudSaveOnOpen = async (game: Game) => {
+  if (isManagedEpicGame(game)) return;
   const mode = await getCloudSaveAutomaticSyncMode(game.objectId, game.shop);
 
   if (shouldRunLegacyAutomaticCloudSave(mode)) {
-    await CloudSync.uploadSaveGame(
-      game.objectId,
-      game.shop,
-      null,
-      CloudSync.getBackupLabel(true)
+    await runWithHydraSaveGuard(() =>
+      CloudSync.uploadSaveGame(
+        game.objectId,
+        game.shop,
+        null,
+        CloudSync.getBackupLabel(true)
+      )
     );
   }
 };
@@ -87,12 +105,14 @@ const runAutomaticCloudSaveOnClose = async (game: Game) => {
   const mode = await getCloudSaveAutomaticSyncMode(game.objectId, game.shop);
 
   if (shouldRunLegacyAutomaticCloudSave(mode)) {
-    if (game.remoteId) {
-      await CloudSync.uploadSaveGame(
-        game.objectId,
-        game.shop,
-        null,
-        CloudSync.getBackupLabel(true)
+    if (game.remoteId && !isManagedEpicGame(game)) {
+      await runWithHydraSaveGuard(() =>
+        CloudSync.uploadSaveGame(
+          game.objectId,
+          game.shop,
+          null,
+          CloudSync.getBackupLabel(true)
+        )
       );
     }
     return;
@@ -212,6 +232,7 @@ const getSystemProcessMap = async () => {
     processMap: rawMap,
     winePrefixMap: rawWineMap,
     linuxProcesses,
+    processTree,
   } = result;
 
   const processMap = new Map<string, Set<string>>(
@@ -220,7 +241,7 @@ const getSystemProcessMap = async () => {
 
   const winePrefixMap = new Map<string, string>(Object.entries(rawWineMap));
 
-  return { processMap, winePrefixMap, linuxProcesses };
+  return { processMap, winePrefixMap, linuxProcesses, processTree };
 };
 
 // Do not restore an old import flag or executable after an asynchronous sync.
@@ -324,8 +345,12 @@ export const watchProcesses = async () => {
 
   if (!games.length) return;
 
-  const systemProcessMap = await getSystemProcessMap();
+  const systemProcessMap = await getSystemProcessMap().catch((error) => {
+    interruptManagedEpicPlaytime();
+    throw error;
+  });
   if (!isValidProcessWatcherScan(systemProcessMap)) {
+    interruptManagedEpicPlaytime();
     logger.warn("Process enumeration failed; skipping process watcher tick");
     return;
   }
@@ -384,6 +409,18 @@ export const watchProcesses = async () => {
       matchedPath = executablePath;
     }
 
+    if (game.shop === "epic") {
+      const managed = await getManagedEpicProcessMatch(
+        gameKey,
+        systemProcessMap.processTree
+      );
+      // Managed launches own their process proof. Generic filename/cwd matches
+      // may refer to another game or another invocation in a shared prefix.
+      if (managed.managed) matchedPath = managed.path ?? undefined;
+      // Missing ancestry data or a failed inspection cannot prove a real close.
+      if (!matchedPath && managed.managed && !managed.complete) continue;
+    }
+
     if (matchedPath) {
       if (gamesPlaytime.has(gameKey)) {
         onTickGame(game);
@@ -414,6 +451,7 @@ async function onOpenGame(game: Game, matchedPath: string) {
   let syncSteamOnExit = false;
   let syncEpicOnExit = false;
   let isSteamLibraryPath = false;
+  const managedEpicSession = await onManagedEpicDetected(game, matchedPath);
 
   if (game.shop === "steam") {
     isSteamLibraryPath = await isSteamAppExecutable(game.objectId, matchedPath);
@@ -453,6 +491,11 @@ async function onOpenGame(game: Game, matchedPath: string) {
       game,
       matchedPath
     ));
+    if (managedEpicSession) {
+      // The captured launch already verified this exact installation and account.
+      countHydraPlaytime = game.enableHydraPlaytimeTracking === true;
+      syncEpicOnExit = true;
+    }
   }
 
   if (authContext && !HydraApi.isAuthContextCurrent(authContext)) return;
@@ -468,6 +511,7 @@ async function onOpenGame(game: Game, matchedPath: string) {
     countHydraPlaytime,
     syncSteamOnExit,
     syncEpicOnExit,
+    managedEpicSession,
   });
 
   logPlaytimeTrace("session-open", game, {
@@ -529,9 +573,10 @@ async function onOpenGame(game: Game, matchedPath: string) {
         });
       });
 
-    void runAutomaticCloudSaveOnOpen(game).catch((error: unknown) => {
-      handleAutomaticCloudSaveLifecycleError("open", game, error);
-    });
+    if (!managedEpicSession)
+      void runAutomaticCloudSaveOnOpen(game).catch((error: unknown) => {
+        handleAutomaticCloudSaveLifecycleError("open", game, error);
+      });
   } else {
     const payload = { ...game, lastTimePlayed: new Date() };
 
@@ -709,9 +754,11 @@ const onCloseGame = (game: Game) => {
 
   if (game.shop === "custom") return;
 
-  void runAutomaticCloudSaveOnClose(game).catch((error: unknown) => {
-    handleAutomaticCloudSaveLifecycleError("close", game, error);
-  });
+  const closedManagedEpic = onManagedEpicClosed(game);
+  if (!gamePlaytime.managedEpicSession || closedManagedEpic)
+    void runAutomaticCloudSaveOnClose(game).catch((error: unknown) => {
+      handleAutomaticCloudSaveLifecycleError("close", game, error);
+    });
 
   if (game.remoteId) {
     logPlaytimeTrace("close-sync-track-request", game, {
