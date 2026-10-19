@@ -105,8 +105,11 @@ git fetch upstream && git merge upstream/release/vX.Y.Z
 
 `yarn test` runs `node --import ./scripts/register-ts-node.mjs --test "src/**/*.test.ts" "scripts/*.test.mjs"`.
 
-- Baseline: **1178/1179 passing**.
-- The single failure, `rejects early exits with the umu failure detail` in `src/main/services/process-watcher`-adjacent `src/main/services/umu-launch-monitor.test.ts`, is a **pre-existing upstream flake** that only fails under full-suite parallel load. It has been reproduced on a pristine `upstream/main` checkout. Don't chase it as a regression.
+- Baseline: **~2240 tests pass**. Failures that are NOT ours (verified on a pristine `upstream/main` worktree):
+  - `src/main/services/epic/launch.test.ts` — upstream's Linux/Windows Epic tests throw `EpicSaveFailure: invalid-path` on darwin. This file also **hangs** (unsettled promise → `Promise resolution is still pending but the event loop has already resolved`); node runs with `--test-timeout=0`, so a plain full-suite run wedges indefinitely. Skip it with `--test-skip-pattern='epic/launch\.test\.ts'` (the flag takes a **regex**, not a glob).
+  - `src/main/services/epic/windows-path.test.ts` — Windows path resolution, cannot pass on darwin.
+  - `src/main/services/umu-launch-monitor.test.ts` (`rejects early exits with the umu failure detail`) — load-dependent upstream flake; passes/fails nondeterministically on identical trees.
+- Upstream's `src/renderer/src/hooks/use-epic-managed.test.ts` loads big-picture's `compatibility-tab.tsx` through `ts.transpileModule` + `createRequire` with an **explicit stub map**. Every import that file pulls in must have a stub there, or the test dies with `Cannot find module '<x>'`. When you add an import to `compatibility-tab.tsx`, add it to that stub map too (this is why `./crossover-settings-section` and `@shared` are stubbed).
 - Test files must **not** import `electron`. Import siblings with an explicit extension — convention is `.js` for main-process modules, `.ts` also works. Extensionless relative imports **fail to resolve** under this runner; this silently broke a test once already.
 
 ## macOS architecture — the non-obvious parts
@@ -124,6 +127,8 @@ Read these before touching macOS code; each was expensive to discover.
 **Big Picture ships inside the renderer bundle.** There is no `out/big-picture`; it is bundled via `src/renderer/src/main.tsx`. It shares the desktop `game_details` i18n namespace, and the global `Electron` interface in `src/renderer/src/declaration.d.ts` is the bridge type to extend.
 
 **Ray tracing is hidden on Apple M1/M2.** `supportsAppleRayTracing(cpuModel)` in `src/shared/crossover-settings.ts` gates the DXR control; `cpuModel` is exposed through preload. Don't "fix" this by showing the option unconditionally.
+
+**Epic Games integration is upstream-only and Linux/Windows-shaped.** It arrived in v4.2.0. The client calls `GET/POST/DELETE /profile/integrations/epic` (`src/main/services/epic/index.ts`); `integration-core.ts` maps HTTP 404/502/503 to `api-unavailable` → the "Epic Games connections are unavailable on this Hydra server" toast. As of 2026-10-18 that route returns **401** (deployed, needs auth) — it returned 404 earlier in October, so the "not yet active" note in the v4.1.6-macos-experimental-4 release description is now stale. Epic launches go through Legendary/umu with Wine prefixes, so none of it applies on macOS; don't try to wire it into the CrossOver path without asking.
 
 ## Update notifications
 
