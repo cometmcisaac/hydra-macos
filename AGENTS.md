@@ -106,7 +106,13 @@ git fetch upstream && git merge upstream/release/vX.Y.Z
 `yarn test` runs `node --import ./scripts/register-ts-node.mjs --test "src/**/*.test.ts" "scripts/*.test.mjs"`.
 
 - Baseline: **~2240 tests pass**. Failures that are NOT ours (verified on a pristine `upstream/main` worktree):
-  - `src/main/services/epic/launch.test.ts` — upstream's Linux/Windows Epic tests throw `EpicSaveFailure: invalid-path` on darwin. This file also **hangs** (unsettled promise → `Promise resolution is still pending but the event loop has already resolved`); node runs with `--test-timeout=0`, so a plain full-suite run wedges indefinitely. Skip it with `--test-skip-pattern='epic/launch\.test\.ts'` (the flag takes a **regex**, not a glob).
+  - `src/main/services/epic/launch.test.ts` — upstream's Linux/Windows Epic tests throw `EpicSaveFailure: invalid-path` on darwin. This file also **hangs** (unsettled promise → `Promise resolution is still pending but the event loop has already resolved`); node runs with `--test-timeout=0`, so a plain full-suite run wedges indefinitely. `--test-skip-pattern` does **not** help: node still spawns a per-file child process, so the hang happens at file load. Exclude the file from the file list instead:
+    ```bash
+    git ls-files 'src/**/*.test.ts' 'scripts/*.test.mjs' \
+      | grep -v 'services/epic/launch\.test\.ts' \
+      | node --import ./scripts/register-ts-node.mjs --test
+    ```
+    (Node reads the file list from stdin. In zsh an unquoted `$VAR` does **not** word-split, and `xargs` is blocked by the safety hook, so pipe into node rather than trying to expand a variable.)
   - `src/main/services/epic/windows-path.test.ts` — Windows path resolution, cannot pass on darwin.
   - `src/main/services/umu-launch-monitor.test.ts` (`rejects early exits with the umu failure detail`) — load-dependent upstream flake; passes/fails nondeterministically on identical trees.
 - Upstream's `src/renderer/src/hooks/use-epic-managed.test.ts` loads big-picture's `compatibility-tab.tsx` through `ts.transpileModule` + `createRequire` with an **explicit stub map**. Every import that file pulls in must have a stub there, or the test dies with `Cannot find module '<x>'`. When you add an import to `compatibility-tab.tsx`, add it to that stub map too (this is why `./crossover-settings-section` and `@shared` are stubbed).
