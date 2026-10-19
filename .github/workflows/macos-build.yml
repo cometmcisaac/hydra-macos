@@ -195,10 +195,13 @@ jobs:
           # (rather than upstream/main) is deliberate: once upstream/main is
           # merged in, "upstream/main..HEAD" is only the fork's own commits and
           # would hide everything upstream brought in since the last release.
+          # `awk 'NR==1'` rather than `head -n 1`: head exits after the first
+          # line and SIGPIPEs the upstream git/grep, which can silently blank
+          # out PREV_TAG. awk reads all input, so nothing is killed early.
           PREV_TAG="$(git tag --list 'v*-macos' --sort=-v:refname \
             | grep -v -- "-macos-experimental" \
             | grep -vx -- "$TAG" \
-            | head -n 1 || true)"
+            | awk 'NR==1' || true)"
           # Intermediate files live outside release/ so the "release/*" glob below
           # uploads only the actual downloadable artifacts.
           NOTES_DIR="$(mktemp -d)"
@@ -207,12 +210,15 @@ jobs:
             if [ -n "$PREV_TAG" ]; then
               echo "Changes since ${PREV_TAG}:"
               echo
-              git log --oneline --no-decorate --no-merges "${PREV_TAG}..HEAD" \
-                | head -n 60
+              # -n 60 instead of piping to `head -n 60`: once a release has more
+              # than 60 commits, `head` closes the pipe early, `git log` dies on
+              # SIGPIPE (exit 141), and `set -o pipefail` turns that into a
+              # failed release job. Let git do its own limiting.
+              git log -n 60 --oneline --no-decorate --no-merges "${PREV_TAG}..HEAD"
             else
               echo "Full commit list:"
               echo
-              git log --oneline --no-decorate --no-merges | head -n 60
+              git log -n 60 --oneline --no-decorate --no-merges
             fi
           } > "${NOTES_DIR}/changelog.md"
 
