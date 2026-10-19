@@ -33,6 +33,26 @@ function load(game: Game | undefined) {
     "@main/services/steam-login-users": {
       getSteamStoreUserContext: async () => ({ known: [] }),
     },
+    // macOS (this fork only): resolving the Wine prefix on darwin goes through
+    // resolveMacWindowsRuntime. The sandbox forces platform: "linux", so these
+    // are never called — they only need to satisfy the import.
+    "@main/services/mac-windows/mac-windows-runtime": {
+      resolveMacWindowsRuntime: async () => null,
+    },
+    "@main/services/steam-integration/steam-protocol-launch": {
+      resolveSteamProtocolLaunch: async () => null,
+    },
+    // This fork replaced upstream's local getCloudSavePlatform() with
+    // resolveCloudSavePlatform(), which maps the host platform to the save
+    // platform. Mirror the old behaviour: win32 -> windows, darwin -> mac.
+    "./cloud-save-platform": {
+      resolveCloudSavePlatform: (platform: string) =>
+        platform === "win32"
+          ? "windows"
+          : platform === "darwin"
+            ? "mac"
+            : "linux",
+    },
     "@shared": { getCloudSaveEmulatorProvider: () => null },
     "../emulators/emulators-repository": {
       getEmulatorConfig: async () => null,
