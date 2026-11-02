@@ -652,11 +652,8 @@ const launchResolvedGame = async (
   launchOptions: string | null | undefined,
   useMangohud: boolean,
   useGamemode: boolean,
-<<<<<<< HEAD
-  macWindowsBackend?: MacWindowsBackend
-=======
-  shortcut: ExecutableShortcut | null = null
->>>>>>> upstream/main
+  macWindowsBackend?: MacWindowsBackend,
+  shortcut?: ExecutableShortcut | null,
 ) => {
   // macOS: a Windows executable that is neither in a Steam library nor in a
   // CrossOver bottle runs through Steam Play (NotProton) as an automatically

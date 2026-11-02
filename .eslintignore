@@ -8,3 +8,5 @@ hydra-native/
 native/torrent-bridge/build/
 /legendary/
 native/**/target/
+native/epic-prerequisite-runner/
+binaries/epic-prerequisite-runner/
