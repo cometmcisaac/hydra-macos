@@ -10,6 +10,7 @@ import {
   useAppDispatch,
   useAppSelector,
   useDownload,
+  useDragTextSelection,
   useLibrary,
   useToast,
   useUserDetails,
@@ -22,6 +23,7 @@ import { WorkWonders } from "workwonders-sdk";
 import {
   clearExtraction,
   closeToast,
+  showToast,
   failClassicsScan,
   failRetroArchScan,
   finishClassicsScan,
@@ -31,6 +33,7 @@ import {
   setExtractionProgress,
   setGameRunning,
   setLibrarySyncingRemote,
+  setLibraryAwaitingAccount,
   setProfileBackground,
   setUserDetails,
   setUserPreferences,
@@ -47,6 +50,9 @@ import { AddFriendModal } from "./pages/profile/profile-content/add-friend-modal
 import { ClassicsScanModal } from "./pages/settings/emulation/classics-scan-modal";
 import { RetroArchScanModal } from "./pages/settings/emulation/retroarch-scan-modal";
 import { CloudGiftNotificationModal } from "./pages/shared-modals/cloud-gift-notification-modal";
+import { useMissingScreenshotsToast } from "./hooks/use-missing-screenshots-toast";
+import { useScreenshotUploadFailureToast } from "./hooks/use-screenshot-upload-failure-toast";
+import { LeaderboardNotificationLayer } from "./components/leaderboard-notification/leaderboard-notification-layer";
 import { playMessageSound } from "./pages/chat-window/chat-sounds";
 
 import type { UserPreferences } from "@types";
@@ -76,6 +82,7 @@ export function App() {
 
   // Listen for new download options updates
   useDownloadOptionsListener();
+  useDragTextSelection();
 
   const { t } = useTranslation("app");
 
@@ -105,7 +112,9 @@ export function App() {
 
   const toast = useAppSelector((state) => state.toast);
 
-  const { showSuccessToast, showErrorToast } = useToast();
+  const { showSuccessToast, showErrorToast, showWarningToast } = useToast();
+  useMissingScreenshotsToast();
+  useScreenshotUploadFailureToast();
 
   const [showArchiveDeletionModal, setShowArchiveDeletionModal] =
     useState(false);
@@ -170,6 +179,19 @@ export function App() {
     });
 
     return () => unsubscribe();
+  }, [updateLibrary]);
+
+  useEffect(() => {
+    const refreshLibrary = () => {
+      void updateLibrary();
+    };
+
+    window.addEventListener("hydra:game-visibility-updated", refreshLibrary);
+    return () =>
+      window.removeEventListener(
+        "hydra:game-visibility-updated",
+        refreshLibrary
+      );
   }, [updateLibrary]);
 
   useEffect(() => {
@@ -343,23 +365,40 @@ export function App() {
   }, [setupExternalResources]);
 
   const onSignIn = useCallback(() => {
+    dispatch(setLibraryAwaitingAccount(true));
     fetchUserDetails().then((response) => {
       if (response) {
         updateUserDetails(response);
         showSuccessToast(t("successfully_signed_in"));
       }
     });
-  }, [fetchUserDetails, t, showSuccessToast, updateUserDetails]);
+  }, [dispatch, fetchUserDetails, t, showSuccessToast, updateUserDetails]);
 
   useEffect(() => {
     const unsubscribe = window.electron.onGamesRunning((gamesRunning) => {
       if (gamesRunning.length) {
+        const runningIds = new Set(gamesRunning.map((game) => game.id));
+        const concealedExecutables = new Set(
+          downloadLibrary
+            .filter(
+              (game) =>
+                game.isConcealed &&
+                game.executablePath &&
+                runningIds.has(game.id)
+            )
+            .map((game) => game.executablePath!.toLowerCase())
+        );
         const lastGame = gamesRunning[gamesRunning.length - 1];
         const libraryGame = library.find(
           (library) => library.id === lastGame.id
         );
 
-        if (libraryGame) {
+        if (
+          libraryGame &&
+          !concealedExecutables.has(
+            libraryGame.executablePath?.toLowerCase() ?? ""
+          )
+        ) {
           dispatch(
             setGameRunning({
               ...libraryGame,
@@ -376,7 +415,7 @@ export function App() {
     return () => {
       unsubscribe();
     };
-  }, [dispatch, library]);
+  }, [dispatch, library, downloadLibrary]);
 
   useEffect(() => {
     window.electron.getActiveClassicsImport().then((snapshot) => {
@@ -462,9 +501,10 @@ export function App() {
         return;
       }
 
-      void updateLibrary().finally(() =>
-        dispatch(setLibrarySyncingRemote(false))
-      );
+      void updateLibrary().finally(() => {
+        dispatch(setLibrarySyncingRemote(false));
+        dispatch(setLibraryAwaitingAccount(false));
+      });
     });
   }, [dispatch, updateLibrary]);
 
@@ -533,12 +573,39 @@ export function App() {
         setArchivePaths(paths);
         setShowArchiveDeletionModal(true);
       }),
+      window.electron.onGameInstallerClosed(
+        (_shop, _objectId, executableFound) => {
+          updateLibrary();
+
+          if (executableFound) {
+            showSuccessToast(
+              t("game_installed_title", { ns: "downloads" }),
+              t("game_installed_description", { ns: "downloads" })
+            );
+            return;
+          }
+
+          showWarningToast(
+            t("installed_game_not_found_title", { ns: "downloads" }),
+            t("installed_game_not_found_description", { ns: "downloads" })
+          );
+        }
+      ),
     ];
 
     return () => {
       listeners.forEach((unsubscribe) => unsubscribe());
     };
-  }, [onSignIn, updateLibrary, clearUserDetails, dispatch, showErrorToast, t]);
+  }, [
+    onSignIn,
+    updateLibrary,
+    clearUserDetails,
+    dispatch,
+    showErrorToast,
+    showSuccessToast,
+    showWarningToast,
+    t,
+  ]);
 
   useEffect(() => {
     const asyncScrollAndNotify = async () => {
@@ -599,6 +666,14 @@ export function App() {
 
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = globalThis.electron.onShowToast((toast) => {
+      dispatch(showToast(toast));
+    });
+
+    return () => unsubscribe();
+  }, [dispatch]);
 
   const playAudio = useCallback(async () => {
     const soundUrl = await getAchievementSoundUrl();
@@ -741,6 +816,8 @@ export function App() {
       />
 
       <CloudGiftNotificationModal />
+
+      <LeaderboardNotificationLayer />
 
       <ArchiveDeletionModal
         visible={showArchiveDeletionModal}

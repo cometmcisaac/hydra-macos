@@ -3,7 +3,8 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { GameShop, type Game, type UserPreferences } from "@types";
-import { db, gamesSublevel, levelKeys } from "@main/level";
+import { db, downloadsSublevel, gamesSublevel, levelKeys } from "@main/level";
+import { isEpicUpdateInterrupted } from "@shared";
 import { updateGameExecutablePath } from "./update-executable-path";
 import {
   clearCloudSaveLaunchGuard,
@@ -45,7 +46,11 @@ import {
 import { launchWindowsGameThroughSteam } from "@main/services/steam-shortcuts/steam-shortcuts";
 import { applyCrossoverSettingsForLaunch } from "@main/services/mac-windows/crossover-settings";
 import { runAchievementMetadataExport } from "@main/services/achievements/metadata-export";
-import { parseExecutablePath } from "../events/helpers/parse-executable-path";
+import {
+  parseExecutablePath,
+  readExecutableShortcut,
+  type ExecutableShortcut,
+} from "../events/helpers/parse-executable-path";
 import { isGamemodeAvailable } from "./is-gamemode-available";
 import { isMangohudAvailable } from "./is-mangohud-available";
 import { resolveLaunchCommand } from "./resolve-launch-command";
@@ -71,6 +76,7 @@ export interface LaunchGameOptions {
   launchOptions?: string | null;
   epicSavePolicy?: "local-once";
   epicOffline?: boolean;
+  epicSkipUpdateCheck?: boolean;
 }
 
 const LAUNCH_DELAY_IN_MS = 2_000;
@@ -121,11 +127,14 @@ const launchNatively = (
   executablePath: string,
   launchOptions?: string | null,
   useMangohud = false,
-  useGamemode = false
+  useGamemode = false,
+  shortcut: ExecutableShortcut | null = null
 ): number | null => {
-  const workingDirectory = path.dirname(executablePath);
+  const workingDirectory =
+    shortcut?.workingDirectory ?? path.dirname(executablePath);
   const resolvedLaunchCommand = resolveLaunchCommand({
     baseCommand: executablePath,
+    baseArgs: shortcut?.arguments,
     launchOptions,
     wrapperCommands: [
       ...(useGamemode ? ["gamemoderun"] : []),
@@ -453,7 +462,7 @@ const launchWindowsBinaryOnLinux = async (
   void UmuUpdater.checkForUpdates();
 
   try {
-    await Umu.launchExecutable(parsedPath, [], {
+    const pid = await Umu.launchExecutable(parsedPath, [], {
       winePrefixPath,
       protonPath,
       gameId: objectId,
@@ -463,6 +472,7 @@ const launchWindowsBinaryOnLinux = async (
       onStatus: reportUmuStatus,
       wasGameDetected: () => wasGameLauncherGameDetected(gameKey),
     });
+    if (pid !== undefined) launchedGamePids.set(gameKey, pid);
     PowerSaveBlockerManager.markCompatibilityLaunchStarted(gameKey);
     return true;
   } catch (error) {
@@ -642,7 +652,11 @@ const launchResolvedGame = async (
   launchOptions: string | null | undefined,
   useMangohud: boolean,
   useGamemode: boolean,
+<<<<<<< HEAD
   macWindowsBackend?: MacWindowsBackend
+=======
+  shortcut: ExecutableShortcut | null = null
+>>>>>>> upstream/main
 ) => {
   // macOS: a Windows executable that is neither in a Steam library nor in a
   // CrossOver bottle runs through Steam Play (NotProton) as an automatically
@@ -680,6 +694,7 @@ const launchResolvedGame = async (
   }
 
   if (process.platform !== "linux") {
+<<<<<<< HEAD
     if (
       process.platform === "darwin" &&
       macWindowsBackend === "crossover" &&
@@ -718,6 +733,15 @@ const launchResolvedGame = async (
     }
 
     return launchNatively(parsedPath, launchOptions, useMangohud, useGamemode);
+=======
+    return launchNatively(
+      parsedPath,
+      launchOptions,
+      useMangohud,
+      useGamemode,
+      shortcut
+    );
+>>>>>>> upstream/main
   }
 
   if (isWindowsExecutable(parsedPath)) {
@@ -788,6 +812,7 @@ const launchGameWithCloudSaveChecks = async (
   const { shop, objectId, executablePath, launchOptions } = options;
 
   const parsedPath = parseExecutablePath(executablePath);
+  const shortcut = readExecutableShortcut(executablePath);
 
   const gameKey = levelKeys.game(shop, objectId);
   const game = await gamesSublevel.get(gameKey);
@@ -1029,6 +1054,11 @@ const launchGameWithCloudSaveChecks = async (
             winePrefixPath: compatibilityContext?.winePrefixPath,
             epicSavePolicy: options.epicSavePolicy,
             epicOffline: options.epicOffline,
+            epicSkipUpdateCheck:
+              options.epicSkipUpdateCheck &&
+              !isEpicUpdateInterrupted(
+                (await downloadsSublevel.get(gameKey)) ?? null
+              ),
             onStatus: createUmuStatusReporter(gameKey),
             // Runs once the Linux prefix exists, so Hydra restores into it and
             // records its upload guard against the prepared environment.
@@ -1127,7 +1157,11 @@ const launchGameWithCloudSaveChecks = async (
           launchOptions,
           useMangohud,
           useGamemode,
+<<<<<<< HEAD
           macWindowsRuntime?.backend
+=======
+          shortcut
+>>>>>>> upstream/main
         );
       }
     );
@@ -1160,7 +1194,11 @@ const launchGameWithCloudSaveChecks = async (
     launchOptions,
     useMangohud,
     useGamemode,
+<<<<<<< HEAD
     macWindowsRuntime?.backend
+=======
+    shortcut
+>>>>>>> upstream/main
   );
 };
 
