@@ -45,8 +45,14 @@ export {
 } from "./playtime";
 export * from "./cloud-save-access";
 export * from "./cloud-save-emulator-provider";
-export * from "./crossover-settings";
 export * from "./screenshot-input";
+export * from "./profile-friends";
+export * from "./classics-disc-label";
+export * from "./crossover-settings";
+export {
+  MULTIPART_DOWNLOADERS,
+  MULTIPART_HOSTER_DOWNLOADS_FEATURE,
+} from "./repack-uri-groups";
 export * from "./controller-support";
 export * from "./artwork-resolver";
 export * from "./library-catalogue";

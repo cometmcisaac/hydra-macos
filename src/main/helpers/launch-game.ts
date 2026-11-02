@@ -653,7 +653,7 @@ const launchResolvedGame = async (
   useMangohud: boolean,
   useGamemode: boolean,
   macWindowsBackend?: MacWindowsBackend,
-  shortcut?: ExecutableShortcut | null,
+  shortcut?: ExecutableShortcut | null
 ) => {
   // macOS: a Windows executable that is neither in a Steam library nor in a
   // CrossOver bottle runs through Steam Play (NotProton) as an automatically
@@ -691,7 +691,6 @@ const launchResolvedGame = async (
   }
 
   if (process.platform !== "linux") {
-<<<<<<< HEAD
     if (
       process.platform === "darwin" &&
       macWindowsBackend === "crossover" &&
@@ -729,8 +728,6 @@ const launchResolvedGame = async (
       });
     }
 
-    return launchNatively(parsedPath, launchOptions, useMangohud, useGamemode);
-=======
     return launchNatively(
       parsedPath,
       launchOptions,
@@ -738,7 +735,6 @@ const launchResolvedGame = async (
       useGamemode,
       shortcut
     );
->>>>>>> upstream/main
   }
 
   if (isWindowsExecutable(parsedPath)) {
@@ -1154,11 +1150,8 @@ const launchGameWithCloudSaveChecks = async (
           launchOptions,
           useMangohud,
           useGamemode,
-<<<<<<< HEAD
-          macWindowsRuntime?.backend
-=======
+          macWindowsRuntime?.backend,
           shortcut
->>>>>>> upstream/main
         );
       }
     );
@@ -1191,11 +1184,8 @@ const launchGameWithCloudSaveChecks = async (
     launchOptions,
     useMangohud,
     useGamemode,
-<<<<<<< HEAD
-    macWindowsRuntime?.backend
-=======
+    macWindowsRuntime?.backend,
     shortcut
->>>>>>> upstream/main
   );
 };
 

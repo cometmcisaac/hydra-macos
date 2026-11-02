@@ -20,12 +20,9 @@ import {
   isLibraryGameDownloading,
   getOfficialStoreMembers,
   MANGOHUD_SITE_URL,
-<<<<<<< HEAD
   normalizeGameCrossoverSettings,
   type GameCrossoverSettings,
-=======
   type RemoveFilesTarget,
->>>>>>> upstream/main
 } from "@shared";
 
 import type {
