@@ -159,7 +159,11 @@ Two upstream workflows are **disabled fork-side via the GitHub API** rather than
 
 ## Releases
 
-Builds are **unsigned**. Users must `xattr -cr /Applications/Hydra.app` after copying it in. GitHub release assets are renamed per-arch (`Hydra-<version>-arm64.dmg`, `-x64.dmg`, `-arm64-mac.zip`, `-mac.zip`) plus `latest-mac.yml` (arm64).
+Builds are **ad-hoc signed, not notarized**. Users must `xattr -cr /Applications/Hydra.app` after copying it in. GitHub release assets are renamed per-arch (`Hydra-<version>-arm64.dmg`, `-x64.dmg`, `-arm64-mac.zip`, `-mac.zip`) plus `latest-mac.yml` (arm64).
+
+Ad-hoc signing is mandatory, not cosmetic. Since upstream v4.4.0, `electron-builder.yml` sets `electronFuses`, which electron-builder applies by patching bytes inside `Electron Framework` **after** the bundle is assembled. That invalidates the linker signature Electron ships with, and the kernel then kills the app at launch with `SIGKILL (Code Signature Invalid)` / `CODESIGNING Invalid Page` in `Electron Framework` — `xattr -cr` cannot fix it. Upstream doesn't notice because they sign with a Developer ID certificate after the fuses are flipped. `scripts/legendary-mac-sign.cjs` therefore signs with `codesign --sign -` when no certificate is available. That path must also set `hardenedRuntime: false` per file: an ad-hoc signature has no Team ID, so hardened runtime's library validation refuses to load `Electron Framework` ("mapping process and mapped file (non-platform) have different Team IDs").
+
+To exercise the ad-hoc path locally (this machine has a valid Apple Development identity that would otherwise be picked up), build with `CSC_IDENTITY_AUTO_DISCOVERY=false`, then check `codesign -d --verbose=4 Hydra.app` reports `flags=0x2(adhoc)` (no `runtime`) and `codesign --verify --deep --strict Hydra.app` passes.
 
 Experimental release titles currently render as `Hydra 4.1.6-macos-experimental-3 (macOS)` because the workflow title only strips the leading `v`. The user has decided this is fine — don't "fix" it unsolicited.
 

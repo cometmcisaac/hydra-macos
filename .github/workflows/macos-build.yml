@@ -226,7 +226,7 @@ jobs:
           } > "${NOTES_DIR}/changelog.md"
 
           {
-            echo "Unsigned macOS build of the Hydra fork (arm64 + x64). After installing, clear the quarantine attribute:"
+            echo "macOS build of the Hydra fork (arm64 + x64). These builds are ad-hoc signed, not notarized, so Gatekeeper still needs the quarantine attribute cleared after installing:"
             echo
             echo "xattr -cr /Applications/Hydra.app"
             echo
