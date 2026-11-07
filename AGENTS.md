@@ -153,6 +153,7 @@ Three upstream macOS-portability bugs were fixed here; keep them in mind if the 
 1. `native/torrent-bridge/CMakeLists.txt` — the test target needs its own `target_compile_features(torrent_bridge_test PRIVATE cxx_std_17)`; the library's is `PRIVATE`, and Apple clang defaults to `gnu++98`.
 2. The build step sets `NODE_OPTIONS=--max-old-space-size=4096`; the 7 GB runners otherwise OOM the renderer bundle (exit 134).
 3. The x64 leg must use `macos-15-intel`; GitHub retired the `macos-13` image on 2025-12-08.
+4. The arm64 leg must use `macos-15`; GitHub retired **all** macOS 14 images on 2026-11-02 (the `macos-14` label now fails instantly with "The configuration 'macos-14-arm64-us-default' is not supported"). Current valid arm64 labels are `macos-15` and `macos-26` — stay on `macos-15` so both legs share one OS/toolchain generation.
 
 Two upstream workflows are **disabled fork-side via the GitHub API** rather than by editing their files, so upstream merges stay pristine: "Trigger Landing Page Build" and "Update AUR Package". Both fire on `release: published` and need secrets the fork doesn't have. Re-enable with `gh workflow enable` if that ever changes.
 

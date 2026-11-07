@@ -34,10 +34,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             arch: arm64
           # macos-13 (Intel) was retired by GitHub on 2025-12-08; macos-15-intel
           # is the supported x86_64 label (available through August 2027).
+          # macos-14 (arm64) was retired on 2026-11-02; macos-15 is the arm64
+          # successor. Keep both legs on macOS 15 so the native Rust/CMake
+          # toolchain stays identical across arches.
           - os: macos-15-intel
             arch: x64
 
