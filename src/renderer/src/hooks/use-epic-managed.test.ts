@@ -755,6 +755,9 @@ describe("Epic managed UI lifecycle", () => {
         "./epic-install-modal": { EpicInstallModal: () => null },
         "@renderer/assets/epic-integration-logo.svg?react": () => null,
         "./repacks-modal.scss": {},
+        "./repack-availability": loadModule(
+          "../pages/game-details/modals/repack-availability.ts"
+        ),
       }
     ).RepacksModal as React.FunctionComponent<{
       visible: boolean;
@@ -909,6 +912,9 @@ describe("Epic managed UI lifecycle", () => {
         "./epic-install-modal": { EpicInstallModal: Install },
         "@renderer/assets/epic-integration-logo.svg?react": () => null,
         "./repacks-modal.scss": {},
+        "./repack-availability": loadModule(
+          "../pages/game-details/modals/repack-availability.ts"
+        ),
       }
     ).RepacksModal as React.FunctionComponent<{
       visible: boolean;
