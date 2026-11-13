@@ -50,7 +50,11 @@ function load(game: Game | undefined) {
             ? "mac"
             : "linux",
     },
-    "@shared": { getCloudSaveEmulatorProvider: () => null },
+    "@shared": {
+      getCloudSaveEmulatorProvider: () => null,
+      isDiscCloudSaveEmulatorProvider: () => false,
+      discCloudSaveEmulatorSystem: () => null,
+    },
     "../emulators/emulators-repository": {
       getEmulatorConfig: async () => null,
     },

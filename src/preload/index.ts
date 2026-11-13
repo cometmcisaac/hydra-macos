@@ -35,6 +35,8 @@ import type {
   EmulatorInstallProgress,
   RecompilationInstallProgress,
   RecompilationPrepareProgress,
+  Ps4PkgAccept,
+  Ps4PkgJobEvent,
   RecompilationRef,
   RecompilationRomSource,
   RetroArchCoreName,
@@ -557,10 +559,13 @@ contextBridge.exposeInMainWorld("electron", {
   getEmulatorConfigs: () => ipcRenderer.invoke("getEmulatorConfigs"),
   getRpcs3ConfigRootStatus: () =>
     ipcRenderer.invoke("getRpcs3ConfigRootStatus"),
-  getRpcs3DiscIdentityStatus: (objectId: string, shop: GameShop) =>
-    ipcRenderer.invoke("getRpcs3DiscIdentityStatus", objectId, shop),
+  getEmulatorDiscIdentityStatus: (objectId: string, shop: GameShop) =>
+    ipcRenderer.invoke("getEmulatorDiscIdentityStatus", objectId, shop),
   setRpcs3ConfigRoot: (root: string) =>
     ipcRenderer.invoke("setRpcs3ConfigRoot", root),
+  getShadps4DataDirStatus: () => ipcRenderer.invoke("getShadps4DataDirStatus"),
+  setShadps4DataDir: (dir: string | null) =>
+    ipcRenderer.invoke("setShadps4DataDir", dir),
   detectEmulators: () => ipcRenderer.invoke("detectEmulators"),
   detectEmulator: (
     system: EmulatorSystem,
@@ -612,8 +617,12 @@ contextBridge.exposeInMainWorld("electron", {
     ),
   rescanEmulator: (system: EmulatorSystem, language?: string) =>
     ipcRenderer.invoke("rescanEmulator", system, language),
-  checkPs3Firmware: (executablePath: string | null) =>
-    ipcRenderer.invoke("checkPs3Firmware", executablePath),
+  checkEmulatorFirmware: (
+    system: EmulatorSystem,
+    executablePath: string | null
+  ) => ipcRenderer.invoke("checkEmulatorFirmware", system, executablePath),
+  checkShadps4TrophyKey: (executablePath: string | null) =>
+    ipcRenderer.invoke("checkShadps4TrophyKey", executablePath),
   checkEmulatorBios: (
     system: EmulatorSystem,
     executablePath: string | null,
@@ -656,6 +665,31 @@ contextBridge.exposeInMainWorld("electron", {
     ref: RecompilationRef,
     choice: { source: RecompilationRomSource; path?: string }
   ) => ipcRenderer.invoke("setRecompilationRom", ref, choice),
+  checkRecompilationRom: (ref: RecompilationRef, path: string) =>
+    ipcRenderer.invoke("checkRecompilationRom", ref, path),
+  extractRecompilationRomPkg: (ref: RecompilationRef, pkgPath: string) =>
+    ipcRenderer.invoke("extractRecompilationRomPkg", ref, pkgPath),
+  hasPs4GameFolder: (shop: GameShop, objectId: string) =>
+    ipcRenderer.invoke("hasPs4GameFolder", shop, objectId),
+  checkPs4Pkg: (
+    shop: GameShop,
+    objectId: string,
+    pkgPath: string,
+    accept: Ps4PkgAccept
+  ) => ipcRenderer.invoke("checkPs4Pkg", shop, objectId, pkgPath, accept),
+  applyPs4Update: (shop: GameShop, objectId: string, pkgPath: string) =>
+    ipcRenderer.invoke("applyPs4Update", shop, objectId, pkgPath),
+  extractPs4GamePkg: (
+    shop: GameShop,
+    objectId: string,
+    pkgPath?: string | null
+  ) => ipcRenderer.invoke("extractPs4GamePkg", shop, objectId, pkgPath),
+  cancelPs4PkgJob: () => ipcRenderer.invoke("cancelPs4PkgJob"),
+  onPs4PkgJob: (cb: (event: Ps4PkgJobEvent) => void) => {
+    const listener = (_event: unknown, payload: Ps4PkgJobEvent) => cb(payload);
+    ipcRenderer.on("on-ps4-pkg-job", listener);
+    return () => ipcRenderer.removeListener("on-ps4-pkg-job", listener);
+  },
   prepareRecompilation: (ref: RecompilationRef) =>
     ipcRenderer.invoke("prepareRecompilation", ref),
   onRecompilationPrepareProgress: (
@@ -965,13 +999,14 @@ contextBridge.exposeInMainWorld("electron", {
             type: "done" | "cancelled";
             requestId: string;
             system: EmulatorSystem;
+            unsupportedPackages: number;
             fileCount: number;
             sizeBytes: number;
             matched: number;
             unmatched: number;
             unmatchedFiles: {
               name: string;
-              reason: "wrong_platform" | "unmatched";
+              reason: "wrong_platform" | "unmatched" | "unsupported_package";
             }[];
           }
         | {
@@ -1200,6 +1235,10 @@ contextBridge.exposeInMainWorld("electron", {
     collectionIds: string[]
   ) =>
     ipcRenderer.invoke("assignGameToCollection", shop, objectId, collectionIds),
+  setCollectionGameOrder: (
+    collectionId: string,
+    games: { shop: GameShop; objectId: string }[]
+  ) => ipcRenderer.invoke("setCollectionGameOrder", collectionId, games),
   setGameVisibility: (
     shop: GameShop,
     objectId: string,
@@ -2163,7 +2202,6 @@ contextBridge.exposeInMainWorld("electron", {
     ipcRenderer.invoke("openAuthWindow", page),
   minimizeAuthWindow: () => ipcRenderer.invoke("minimizeAuthWindow"),
   closeAuthWindow: () => ipcRenderer.invoke("closeAuthWindow"),
-  getSessionHash: () => ipcRenderer.invoke("getSessionHash"),
   onSignIn: (cb: () => void) => {
     const listener = (_event: Electron.IpcRendererEvent) => cb();
     ipcRenderer.on("on-signin", listener);
